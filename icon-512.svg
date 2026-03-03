@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#06060e"/>
+  <rect x="16" y="16" width="480" height="480" rx="88" fill="none" stroke="url(#g)" stroke-width="3"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#bf5af2"/>
+    </linearGradient>
+  </defs>
+  <!-- Dumbbell icon -->
+  <g transform="translate(256,240)" fill="none" stroke="url(#g)" stroke-width="14" stroke-linecap="round">
+    <!-- Bar -->
+    <line x1="-100" y1="0" x2="100" y2="0"/>
+    <!-- Left weight -->
+    <rect x="-132" y="-60" width="38" height="120" rx="10" fill="#00e5ff" fill-opacity="0.15" stroke="url(#g)"/>
+    <rect x="-160" y="-44" width="30" height="88" rx="8" fill="#00e5ff" fill-opacity="0.1" stroke="url(#g)"/>
+    <!-- Right weight -->
+    <rect x="94" y="-60" width="38" height="120" rx="10" fill="#bf5af2" fill-opacity="0.15" stroke="url(#g)"/>
+    <rect x="130" y="-44" width="30" height="88" rx="8" fill="#bf5af2" fill-opacity="0.1" stroke="url(#g)"/>
+  </g>
+  <!-- Text -->
+  <text x="256" y="400" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="48" fill="#00e5ff" letter-spacing="8">TREINO</text>
+</svg>

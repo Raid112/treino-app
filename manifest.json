@@ -1,0 +1,24 @@
+{
+  "name": "Treino Unificado",
+  "short_name": "Treino",
+  "description": "App de treino de força com periodização",
+  "start_url": "./workoutNew.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06060e",
+  "theme_color": "#06060e",
+  "icons": [
+    {
+      "src": "icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
