@@ -2,7 +2,7 @@
   "name": "Treino Unificado",
   "short_name": "Treino",
   "description": "App de treino de força com periodização",
-  "start_url": "./workoutNew.html",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#06060e",

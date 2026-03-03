@@ -1,6 +1,7 @@
 const CACHE_NAME = 'treino-v1';
 const ASSETS = [
-  './workoutNew.html',
+  './',
+  './index.html',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg'
