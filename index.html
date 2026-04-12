@@ -712,12 +712,12 @@ const RUNNING_DATA = {
   4:  { longRun:{min:22,zone:'Z2'}, media:{min:18,zone:'Z2'}, quality:{min:18,zone:'Z2'}, total:58, note:'DELOAD' },
   5:  { longRun:{min:32,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:25,zone:'Z2'}, total:82 },
   6:  { longRun:{min:35,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:25,zone:'Z2'}, total:88 },
-  7:  { longRun:{min:38,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:27,zone:'Z2'}, total:95 },
-  8:  { longRun:{min:28,zone:'Z2'}, media:{min:22,zone:'Z2'}, quality:{min:20,zone:'Z2'}, total:70, note:'DELOAD' },
-  9:  { longRun:{min:40,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:28,zone:'Z2'}, total:98 },
-  10: { longRun:{min:42,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:28,zone:'Z2'}, total:102 },
-  11: { longRun:{min:45,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:108 },
-  12: { longRun:{min:32,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:22,zone:'Z2'}, total:79, note:'DELOAD + MAF' },
+  7:  { longRun:{min:40,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:28,zone:'Z2'}, total:96 },
+  8:  { longRun:{min:45,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:28,zone:'Z2'}, total:101 },
+  9:  { longRun:{min:45,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:105 },
+  10: { longRun:{min:50,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:110 },
+  11: { longRun:{min:55,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:115 },
+  12: { longRun:{min:60,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:120, note:'MAF Test' },
   13: { longRun:{min:45,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Quality'}, total:105, note:'Intervalados' },
   14: { longRun:{min:47,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:30,zone:'Quality'}, total:109 },
   15: { longRun:{min:48,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:32,zone:'Quality'}, total:113 },
@@ -734,13 +734,13 @@ const RUNNING_DATA = {
 
 const DAY_DEFS = [
   { day:1, type:'combined',    name:'Squat + Corrida',    sugDay:'Seg', color:'purple',
-    strength:{lift:'squat',    level:'primary'}, run:'media' },
-  { day:2, type:'combined',    name:'Deadlift + Long Run',sugDay:'Ter', color:'purple',
-    strength:{lift:'deadlift', level:'secondary'}, run:'longRun' },
+    strength:{lift:'squat',    level:'primary'}, run:'media', runCtx:'muscu' },
+  { day:2, type:'combined',    name:'Corrida + Deadlift', sugDay:'Ter', color:'purple',
+    strength:{lift:'deadlift', level:'secondary'}, run:'quality', runCtx:'muscu' },
   { day:3, type:'strength',    name:'Bench + Squat',      sugDay:'Qua', color:'cyan',
     exercises:[{lift:'bench',level:'primary'},{lift:'squat',level:'secondary'}] },
-  { day:4, type:'running',     name:'Corrida',            sugDay:'Qui', color:'green',
-    run:'quality' },
+  { day:4, type:'running',     name:'Long Run',           sugDay:'Qui', color:'green',
+    run:'longRun', runCtx:'solo' },
   { day:5, type:'strength',    name:'Deadlift + Bench',   sugDay:'Sex', color:'cyan',
     exercises:[{lift:'deadlift',level:'primary'},{lift:'bench',level:'secondary'}] },
   { day:6, type:'accessories', name:'Acessorios',         sugDay:'Sab', color:'amber' }
@@ -768,6 +768,19 @@ const EXECUTION_PROFILES = {
 };
 
 const LIFT_NAMES = { squat:'Squat', bench:'Bench Press', deadlift:'Deadlift' };
+
+const ZONE_INFO = {
+  'Z2':      { fc:'130-150 bpm', desc:'Aerobico base' },
+  'Quality': { fc:'150-160 bpm', desc:'Intervalados' },
+  'Pace':    { fc:'145-155 bpm', desc:'Pace especifico' },
+  'Easy':    { fc:'<130 bpm',    desc:'Recuperacao' },
+  '5K Teste':{ fc:'Max effort',  desc:'Teste 5K' }
+};
+
+const CADENCE_TARGETS = {
+  solo:  { label:'Esteira ~149 spm · Outdoor ~130 spm', tip:'+5 spm/mes via metronomo (5 min iniciais)' },
+  muscu: { label:'Esteira ~149 spm · Outdoor ~130 spm', tip:'Foco em manter Z2, cadencia secundaria' }
+};
 
 function getAccSets(week) {
   if (week >= 22) return 0;
@@ -1185,10 +1198,12 @@ const App = {
         const s = dd.strength.level === 'primary' ? wd.p : wd.sec;
         const w = Workout.calcWeight(config.oneRM[dd.strength.lift], s.pct);
         const runInfo = rd[dd.run];
-        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runInfo.min}min ${runInfo.zone}</strong>`;
+        const zi = ZONE_INFO[runInfo.zone];
+        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runInfo.min}min ${runInfo.zone}</strong>${zi ? ` <span style="font-size:10px;color:var(--text-muted)">${zi.fc}</span>` : ''}`;
       } else if (dd.type === 'running') {
         const runInfo = rd[dd.run];
-        scheme = `<strong class="green">${runInfo.min}min ${runInfo.zone}</strong>`;
+        const zi = ZONE_INFO[runInfo.zone];
+        scheme = `<strong class="green">${runInfo.min}min ${runInfo.zone}</strong>${zi ? ` <span style="font-size:10px;color:var(--text-muted)">${zi.fc}</span>` : ''}`;
       } else if (dd.type === 'accessories') {
         scheme = `<strong class="amber">7 exercicios</strong>`;
       } else if (wd.special === '1rm_test') {
@@ -1343,17 +1358,31 @@ const App = {
 
   renderRunCard(container, w) {
     const r = w.running;
+    const dayDef = DAY_DEFS[w.dayNum - 1];
+    const runCtx = dayDef.runCtx || 'solo';
+    const zi = ZONE_INFO[r.target.zone];
+    const cad = CADENCE_TARGETS[runCtx];
     const div = document.createElement('div');
     div.className = 'running-card';
     div.id = 'running-card';
     const noteHtml = r.note ? `<div class="running-card-note">${r.note}</div>` : '';
+    const ctxLabel = runCtx === 'solo' ? 'DIA SOLO' : 'COM MUSCULACAO';
+    const ctxColor = runCtx === 'solo' ? 'var(--neon-green)' : 'var(--neon-purple)';
     div.innerHTML = `
       <div class="running-card-header">
         <span class="running-card-title">CORRIDA</span>
         <span class="running-card-zone">${r.target.zone}</span>
       </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:10px;font-family:var(--font-display);letter-spacing:1.5px;color:${ctxColor};font-weight:600;">${ctxLabel}</span>
+        ${zi ? `<span style="font-size:11px;color:var(--text-muted);">${zi.fc}</span>` : ''}
+      </div>
       <div class="running-card-target">${r.target.min} min</div>
       ${noteHtml}
+      ${cad ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-bottom:8px;">
+        <span style="color:var(--neon-amber);">♫</span> ${cad.label}
+        <div style="font-size:10px;margin-top:2px;opacity:0.7;">${cad.tip}</div>
+      </div>` : ''}
       <div class="run-timer-area">
         <button class="btn btn-green" id="btn-start-run" style="margin-bottom:12px;">INICIAR CORRIDA</button>
         <div id="run-timer-display" style="display:none;">
