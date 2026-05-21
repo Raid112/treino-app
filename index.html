@@ -148,6 +148,10 @@ body > * { position: relative; z-index: 1; }
 .week-summary-note {
   font-size: 11px; color: var(--neon-amber); margin-top: 2px; font-weight: 500;
 }
+.week-summary-warning {
+  font-size: 11px; color: var(--neon-magenta); margin-top: 2px; font-weight: 600;
+  text-shadow: 0 0 4px rgba(255,45,120,0.4);
+}
 .week-summary-goal {
   min-width: 100px; text-align: center;
 }
@@ -699,10 +703,10 @@ const WEEK_DATA = {
   18: { theme:'Deload',      block:'Transmutacao II',bn:3, p:{s:3,r:3,pct:65},  sec:{s:2,r:3,pct:62}, deload:true },
   19: { theme:'Forca',       block:'Realizacao',     bn:4, p:{s:3,r:2,pct:92},  sec:{s:3,r:3,pct:82} },
   20: { theme:'Tecnica',     block:'Realizacao',     bn:4, p:{s:4,r:3,pct:80},  sec:{s:3,r:3,pct:78} },
-  21: { theme:'Forca',       block:'Realizacao',     bn:4, p:{s:3,r:2,pct:93},  sec:{s:2,r:3,pct:83} },
-  22: { theme:'Taper',       block:'Realizacao',     bn:4, p:{s:2,r:3,pct:75},  sec:{s:2,r:3,pct:70}, deload:true },
-  23: { theme:'1RM Test',    block:'Realizacao',     bn:4, special:'1rm_test' },
-  24: { theme:'Recovery',    block:'Realizacao',     bn:4, p:{s:2,r:5,pct:50},  sec:{s:2,r:5,pct:50}, special:'recovery' }
+  21: { theme:'Taper Forca', block:'Realizacao',     bn:4, p:{s:3,r:1,pct:88},  sec:{s:2,r:1,pct:85}, taper:true },
+  22: { theme:'1RM Test',    block:'Realizacao',     bn:4, special:'1rm_test' },
+  23: { theme:'Recovery',    block:'Realizacao',     bn:4, p:{s:2,r:5,pct:50},  sec:{s:2,r:5,pct:50}, special:'recovery' },
+  24: { theme:'Recovery',    block:'Realizacao',     bn:4, p:{s:2,r:5,pct:50},  sec:{s:2,r:5,pct:50}, special:'recovery', specialRun:'5k_test' }
 };
 
 const RUNNING_DATA = {
@@ -718,24 +722,24 @@ const RUNNING_DATA = {
   10: { longRun:{min:48,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:34,zone:'Z2'}, total:115 },
   11: { longRun:{min:52,zone:'Z2'}, media:{min:37,zone:'Z2'}, quality:{min:36,zone:'Z2'}, total:125 },
   12: { longRun:{min:38,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:26,zone:'Z2'}, total:92, note:'MAF Test + DELOAD' },
-  13: { longRun:{min:45,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:35,zone:'Quality'}, total:112, note:'Intervalados' },
-  14: { longRun:{min:48,zone:'Z2'}, media:{min:34,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:120 },
-  15: { longRun:{min:52,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:128 },
-  16: { longRun:{min:35,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:22,zone:'Z2'}, total:82, note:'DELOAD' },
+  13: { longRun:{min:45,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:35,zone:'Quality'}, total:112, note:'Intervalados', noteWarning:'RPE 7 / FC ≤155 bpm (Decisão #3)' },
+  14: { longRun:{min:48,zone:'Z2'}, media:{min:34,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:120, noteWarning:'RPE 7 / FC ≤155 bpm (Decisão #3)' },
+  15: { longRun:{min:52,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:128, note:'Liberar RPE 8 / FC ≤160 bpm' },
+  16: { longRun:{min:45,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:30,zone:'Quality'}, total:108 },
   17: { longRun:{min:50,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:37,zone:'Quality'}, total:125, note:'Tempo runs' },
   18: { longRun:{min:55,zone:'Z2'}, media:{min:40,zone:'Z2'}, quality:{min:37,zone:'Quality'}, total:132 },
   19: { longRun:{min:58,zone:'Z2'}, media:{min:42,zone:'Z2'}, quality:{min:40,zone:'Quality'}, total:140 },
   20: { longRun:{min:40,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:100, note:'DELOAD' },
   21: { longRun:{min:55,zone:'Z2'}, media:{min:40,zone:'Z2'}, quality:{min:33,zone:'Pace'}, total:128, note:'Pace-specific' },
-  22: { longRun:{min:52,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:30,zone:'Pace'}, total:120 },
-  23: { longRun:{min:45,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:25,zone:'Easy'}, total:100, note:'TAPER' },
-  24: { longRun:{min:30,zone:'Z2'}, media:{min:20,zone:'Z2'}, quality:{min:0,zone:'5K Teste'}, total:82, note:'TESTE 5K' }
+  22: { longRun:{min:30,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:25,zone:'Z2'}, total:80, note:'Semana TESTE 1RM' },
+  23: { longRun:{min:25,zone:'Z2'}, media:{min:12,zone:'Pace'}, quality:{min:25,zone:'Z2'}, total:62, note:'Recovery ativa + 1 pace run curta' },
+  24: { longRun:{min:20,zone:'Z2'}, media:{min:15,zone:'Z2'}, quality:{min:0,zone:'5K Teste'}, total:50, note:'TESTE 5K' }
 };
 
 const DAY_DEFS = [
   { day:1, type:'combined',    name:'Squat + Corrida',    sugDay:'Seg', color:'purple',
     strength:{lift:'squat',    level:'primary'}, run:'media', runCtx:'muscu' },
-  { day:2, type:'combined',    name:'Corrida + Deadlift', sugDay:'Ter', color:'purple',
+  { day:2, type:'combined',    name:'Deadlift + Corrida', sugDay:'Ter', color:'purple',
     strength:{lift:'deadlift', level:'secondary'}, run:'quality', runCtx:'muscu' },
   { day:3, type:'strength',    name:'Bench + Squat',      sugDay:'Qua', color:'cyan',
     exercises:[{lift:'bench',level:'primary'},{lift:'squat',level:'secondary'}] },
@@ -763,6 +767,7 @@ const EXECUTION_PROFILES = {
   'Deload':      { label:'Controlada',   desc:'Leve e t\u00e9cnico',       rpe:'5-6', restSec:120 },
   'Tecnica':     { label:'Controlada',   desc:'Foco em t\u00e9cnica',      rpe:'6-7', restSec:150 },
   'Taper':       { label:'Controlada',   desc:'Leve, manuten\u00e7\u00e3o',     rpe:'5-6', restSec:120 },
+  'Taper Forca': { label:'Conc. R\u00e1pida', desc:'Singles 85-90%, volume baixo', rpe:'8-9', restSec:240 },
   '1RM Test':    { label:'M\u00e1xima',       desc:'Tentativa \u00fanica',      rpe:'10',  restSec:300 },
   'Recovery':    { label:'Controlada',   desc:'Recupera\u00e7\u00e3o ativa',    rpe:'4-5', restSec:120 },
 };
@@ -783,7 +788,7 @@ const CADENCE_TARGETS = {
 };
 
 function getAccSets(week) {
-  if (week >= 22) return 0;
+  if (week >= 21) return 0;
   if (week >= 19) return -2;
   if (week >= 13) return -1;
   return 0;
@@ -850,7 +855,7 @@ const Storage = {
     const config = this.getConfig();
     const completed = this.getCompletedDaysForWeek(config.currentWeek);
     const week = config.currentWeek;
-    const required = week >= 22 ? [1,2,3,4,5] : [1,2,3,4,5,6];
+    const required = week >= 21 ? [1,2,3,4,5] : [1,2,3,4,5,6];
     if (required.every(d => completed.includes(d)) && week < 24) {
       this.updateWeek(week + 1);
     }
@@ -978,7 +983,7 @@ const Workout = {
     // Accessories
     if (dayDef.type === 'accessories') {
       const adj = getAccSets(week);
-      if (adj === 0 && week < 22) {
+      if (adj === 0 && week < 21) {
         const accWeights = Storage.getAccWeights();
         base.accessories = ACCESSORIES.map(a => ({
           ...a,
@@ -986,7 +991,7 @@ const Workout = {
           setsCompleted: 0,
           completedSetIndices: []
         }));
-      } else if (week < 22) {
+      } else if (week < 21) {
         const accWeights = Storage.getAccWeights();
         base.accessories = ACCESSORIES.map(a => ({
           ...a,
@@ -1147,6 +1152,7 @@ const App = {
     const runTarget = rd.total;
     const pct5k = runTarget > 0 ? Math.min((runDone / runTarget) * 100, 100) : 0;
     const noteHtml = rd.note ? `<div class="week-summary-note">${rd.note}</div>` : '';
+    const warnHtml = rd.noteWarning ? `<div class="week-summary-warning">⚠ ${rd.noteWarning}</div>` : '';
 
     document.getElementById('week-summary').innerHTML = `
       <div class="week-summary-title">Semana ${week} — ${wd.block}</div>
@@ -1160,6 +1166,7 @@ const App = {
         <div class="week-summary-center">
           <div class="week-summary-theme">${wd.theme}</div>
           ${noteHtml}
+          ${warnHtml}
         </div>
         <div class="week-summary-goal">
           <div class="week-summary-goal-label">CORRIDA</div>
@@ -1178,7 +1185,7 @@ const App = {
     const picker = document.getElementById('session-picker');
     picker.innerHTML = DAY_DEFS.map(dd => {
       const done = Storage.isDayCompleted(dd.day);
-      const skipAcc = dd.type === 'accessories' && week >= 22;
+      const skipAcc = dd.type === 'accessories' && week >= 21;
       if (skipAcc) return `
         <div class="session-card type-${dd.type} completed" style="opacity:0.4">
           <div class="session-card-header">
