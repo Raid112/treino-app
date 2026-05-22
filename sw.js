@@ -1,4 +1,4 @@
-const CACHE_NAME = 'treino-v2';
+const CACHE_NAME = 'treino-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // CF Worker — sempre network, nunca cacheia (dados dinâmicos)
+  if (e.request.url.includes('garmin-cf-probe.caiocpagliarani.workers.dev')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
   // Google Fonts — network first, fallback to cache
   if (e.request.url.includes('fonts.googleapis.com') || e.request.url.includes('fonts.gstatic.com')) {
     e.respondWith(

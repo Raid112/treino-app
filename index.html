@@ -593,6 +593,57 @@ body > * { position: relative; z-index: 1; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { opacity: 0.3; }
+
+/* === READINESS TILE === */
+.readiness-tile {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--glass-shadow);
+  padding: 14px 16px; margin-bottom: 16px;
+}
+.readiness-tile.stale { border-color: rgba(255,171,0,0.4); }
+.readiness-tile.error { border-color: rgba(255,45,120,0.4); }
+.readiness-tile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.readiness-score {
+  font-family: var(--font-display); font-size: 38px; font-weight: 800; line-height: 1;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-green));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.readiness-score.warn { background: linear-gradient(135deg, var(--neon-amber), var(--neon-magenta)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.readiness-score-label { text-align: right; font-family: var(--font-display); font-size: 9px; color: var(--text-muted); letter-spacing: 2px; line-height: 1.4; }
+.readiness-verdict { font-size: 12px; color: var(--text-primary); margin-bottom: 10px; }
+.readiness-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.readiness-metric { text-align: center; padding: 6px 4px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.03); }
+.readiness-metric-label { font-size: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.readiness-metric-value { font-family: var(--font-display); font-size: 13px; font-weight: 600; margin-top: 2px; }
+.readiness-metric-value.cyan { color: var(--neon-cyan); }
+.readiness-metric-value.amber { color: var(--neon-amber); }
+.readiness-metric-value.magenta { color: var(--neon-magenta); }
+.readiness-metric-value.green { color: var(--neon-green); }
+.readiness-footer { font-size: 9px; color: var(--text-muted); margin-top: 8px; text-align: right; letter-spacing: 0.5px; }
+
+/* === MODAL OVERLAY === */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(6, 6, 14, 0.85);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal-card {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--glass-shadow);
+  padding: 24px; max-width: 420px; width: 100%;
+}
+.modal-card h3 { font-family: var(--font-display); font-size: 16px; letter-spacing: 1.5px; color: var(--neon-cyan); margin-bottom: 10px; }
+.modal-card p { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5; }
+.modal-card textarea {
+  width: 100%; padding: 10px; background: rgba(0,0,0,0.3);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  color: var(--text-primary); font-family: monospace; font-size: 12px;
+  resize: none; min-height: 56px; margin-bottom: 14px; box-sizing: border-box;
+}
+.modal-actions { display: flex; gap: 8px; }
+.modal-actions .btn { margin-bottom: 0; flex: 1; }
   </style>
 </head>
 <body>
@@ -606,6 +657,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
         <button class="week-btn" id="btn-next-week">&gt;</button>
       </div>
     </div>
+    <div id="readiness-tile" class="readiness-tile" style="display:none;"></div>
     <div id="week-summary" class="week-summary"></div>
     <div id="session-picker" class="session-picker"></div>
   </div>
@@ -657,6 +709,8 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
         <button id="btn-back-settings" class="btn btn-secondary">Voltar</button>
         <button id="btn-save-settings" class="btn btn-primary">Salvar</button>
       </div>
+      <div class="form-section-title" style="margin-top:24px;">Garmin</div>
+      <button id="btn-connect-garmin" class="btn btn-secondary">Conectar Garmin</button>
       <div class="form-section-title" style="margin-top:24px;">Dados</div>
       <button id="btn-export" class="btn btn-secondary">Exportar CSV</button>
       <button id="btn-reset" class="btn btn-danger">Resetar Dados</button>
@@ -787,6 +841,10 @@ const CADENCE_TARGETS = {
   muscu: { label:'Esteira ~149 spm · Outdoor ~130 spm', tip:'Foco em manter Z2, cadencia secundaria' }
 };
 
+// CF Worker proxy pra Garmin
+const WORKER_URL = 'https://garmin-cf-probe.caiocpagliarani.workers.dev';
+const READINESS_FETCH_MIN_INTERVAL_MS = 60 * 60 * 1000; // 1h throttle
+
 function getAccSets(week) {
   if (week >= 21) return 0;
   if (week >= 19) return -2;
@@ -804,7 +862,9 @@ const Storage = {
     WORKOUTS: 'wu_history',
     IN_PROGRESS: 'wu_in_progress',
     ACTIVE_SCREEN: 'wu_active_screen',
-    ACC_WEIGHTS: 'wu_acc_weights'
+    ACC_WEIGHTS: 'wu_acc_weights',
+    PASSPHRASE: 'wu_auth_passphrase',
+    READINESS: 'wu_readiness'
   },
 
   defaultConfig: {
@@ -885,6 +945,12 @@ const Storage = {
     w[name] = weight;
     localStorage.setItem(this.KEYS.ACC_WEIGHTS, JSON.stringify(w));
   },
+
+  getPassphrase()    { return localStorage.getItem(this.KEYS.PASSPHRASE) || ''; },
+  savePassphrase(p)  { localStorage.setItem(this.KEYS.PASSPHRASE, p); },
+  clearPassphrase()  { localStorage.removeItem(this.KEYS.PASSPHRASE); },
+  getReadiness()     { const d = localStorage.getItem(this.KEYS.READINESS); return d ? JSON.parse(d) : null; },
+  saveReadiness(d)   { localStorage.setItem(this.KEYS.READINESS, JSON.stringify({...d, _saved_at: Date.now()})); },
 
   clearAll() {
     Object.values(this.KEYS).forEach(k => localStorage.removeItem(k));
@@ -1090,6 +1156,19 @@ const App = {
       else if (last === 'settings') this.showSettings();
       else { this.showScreen('home'); this.updateHomeScreen(); }
     }
+
+    // Readiness: render cached + dispatch fetch async (non-blocking)
+    const cachedReadiness = Storage.getReadiness();
+    if (cachedReadiness) {
+      const ageMin = cachedReadiness._saved_at ? (Date.now() - cachedReadiness._saved_at) / 60000 : 999;
+      this.renderReadinessTile(cachedReadiness, { stale: ageMin > 120 });
+    }
+    if (Storage.getPassphrase()) {
+      this.fetchReadiness();
+    } else if (!cachedReadiness) {
+      // First-time user, no passphrase, no cache — pede a passphrase
+      setTimeout(() => this.openPassphraseModal(), 400);
+    }
   },
 
   showScreen(id) {
@@ -1136,6 +1215,135 @@ const App = {
         else if (s === 'settings') this.showSettings();
       });
     });
+    // Passphrase modal
+    const btnSave = document.getElementById('btn-passphrase-save');
+    const btnCancel = document.getElementById('btn-passphrase-cancel');
+    const btnConnect = document.getElementById('btn-connect-garmin');
+    if (btnSave) btnSave.addEventListener('click', () => this.savePassphraseFromModal());
+    if (btnCancel) btnCancel.addEventListener('click', () => this.cancelPassphraseModal());
+    if (btnConnect) btnConnect.addEventListener('click', () => this.openPassphraseModal());
+    // Refresh readiness quando app volta do background
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.currentScreen() === 'home') {
+        this.fetchReadiness();
+      }
+    });
+  },
+
+  currentScreen() {
+    const el = document.querySelector('.screen.active');
+    return el ? el.id : 'home';
+  },
+
+  // ========== READINESS ==========
+
+  openPassphraseModal() {
+    const modal = document.getElementById('passphrase-modal');
+    const input = document.getElementById('passphrase-input');
+    input.value = Storage.getPassphrase() || '';
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 50);
+  },
+
+  closePassphraseModal() {
+    document.getElementById('passphrase-modal').classList.remove('active');
+  },
+
+  cancelPassphraseModal() {
+    this.closePassphraseModal();
+    if (this._passphraseResolver) { this._passphraseResolver(null); this._passphraseResolver = null; }
+  },
+
+  savePassphraseFromModal() {
+    const v = document.getElementById('passphrase-input').value.trim();
+    if (v) Storage.savePassphrase(v);
+    this.closePassphraseModal();
+    if (this._passphraseResolver) { this._passphraseResolver(v || null); this._passphraseResolver = null; }
+    if (v) this.fetchReadiness({ force: true });
+  },
+
+  ensurePassphrase() {
+    return new Promise(resolve => {
+      const existing = Storage.getPassphrase();
+      if (existing) { resolve(existing); return; }
+      this._passphraseResolver = resolve;
+      this.openPassphraseModal();
+    });
+  },
+
+  async fetchReadiness({ force = false } = {}) {
+    const passphrase = Storage.getPassphrase();
+    if (!passphrase) {
+      // Nao abre modal automaticamente — deixa o user iniciar via Settings ou primeiro init
+      return;
+    }
+    const last = Storage.getReadiness();
+    if (!force && last && (Date.now() - (last._saved_at || 0)) < READINESS_FETCH_MIN_INTERVAL_MS) {
+      return; // throttle
+    }
+    try {
+      const r = await fetch(`${WORKER_URL}/readiness`, {
+        headers: { 'Authorization': `Bearer ${passphrase}` }
+      });
+      if (r.status === 401) {
+        Storage.clearPassphrase();
+        if (last) this.renderReadinessTile(last, { stale: true, error: true });
+        this.openPassphraseModal();
+        return;
+      }
+      if (r.status === 503 || !r.ok) {
+        if (last) this.renderReadinessTile(last, { stale: true });
+        return;
+      }
+      const data = await r.json();
+      Storage.saveReadiness(data);
+      this.renderReadinessTile(Storage.getReadiness(), { stale: false });
+    } catch (e) {
+      if (last) this.renderReadinessTile(last, { stale: true });
+    }
+  },
+
+  renderReadinessTile(data, opts = {}) {
+    const tile = document.getElementById('readiness-tile');
+    if (!data) { tile.style.display = 'none'; return; }
+    tile.style.display = 'block';
+    tile.classList.toggle('stale', opts.stale === true);
+    tile.classList.toggle('error', opts.error === true);
+    const score = data.score ?? 0;
+    const scoreClass = score >= 6 ? '' : 'warn';
+    const minutesAgo = data._saved_at ? Math.floor((Date.now() - data._saved_at) / 60000) : 0;
+    const ageLabel = opts.stale
+      ? (opts.error ? 'Passphrase invalida' : `Cache de ${minutesAgo}min - sync PC`)
+      : (minutesAgo === 0 ? 'Agora' : `Atualizado ha ${minutesAgo}min`);
+    const m = data.metrics || {};
+    const hrvClass = m.hrv_status === 'BALANCED' ? 'green' : m.hrv_status === 'UNBALANCED' ? 'amber' : m.hrv_status === 'LOW' ? 'magenta' : '';
+    const bbClass = (m.body_battery_charged ?? 0) >= 50 ? 'green' : (m.body_battery_charged ?? 0) >= 30 ? 'amber' : 'magenta';
+    const acwrClass = m.acwr_band === 'sweet_spot' ? 'green' : m.acwr_band === 'elevated' ? 'amber' : m.acwr_band === 'high_risk' ? 'magenta' : '';
+    tile.innerHTML = `
+      <div class="readiness-tile-header">
+        <div class="readiness-score ${scoreClass}">${score}</div>
+        <div class="readiness-score-label">READINESS<br>/10</div>
+      </div>
+      <div class="readiness-verdict">${data.verdict || ''}</div>
+      <div class="readiness-metrics">
+        <div class="readiness-metric">
+          <div class="readiness-metric-label">SONO</div>
+          <div class="readiness-metric-value cyan">${m.sleep_score ?? '-'}</div>
+        </div>
+        <div class="readiness-metric">
+          <div class="readiness-metric-label">HRV</div>
+          <div class="readiness-metric-value ${hrvClass}">${m.hrv_status ? m.hrv_status[0] : '-'}</div>
+        </div>
+        <div class="readiness-metric">
+          <div class="readiness-metric-label">BB</div>
+          <div class="readiness-metric-value ${bbClass}">${m.body_battery_charged ?? '-'}</div>
+        </div>
+        <div class="readiness-metric">
+          <div class="readiness-metric-label">ACWR</div>
+          <div class="readiness-metric-value ${acwrClass}">${m.acwr != null ? m.acwr.toFixed(2) : '-'}</div>
+        </div>
+      </div>
+      <div class="readiness-footer">${ageLabel}</div>`;
   },
 
   updateHomeScreen() {
@@ -1821,5 +2029,18 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
   </script>
+
+  <!-- PASSPHRASE MODAL -->
+  <div id="passphrase-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h3>CONECTAR GARMIN</h3>
+      <p>Cola a passphrase do Worker (gerada quando configurou o Cloudflare). Fica salva so neste dispositivo. Sem ela, o tile de Readiness fica oculto.</p>
+      <textarea id="passphrase-input" placeholder="32-char hex..." autocomplete="off" spellcheck="false"></textarea>
+      <div class="modal-actions">
+        <button id="btn-passphrase-cancel" class="btn btn-secondary">Pular</button>
+        <button id="btn-passphrase-save" class="btn btn-primary">Salvar</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
