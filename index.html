@@ -1159,14 +1159,16 @@ const App = {
 
     // Readiness: render cached + dispatch fetch async (non-blocking)
     const cachedReadiness = Storage.getReadiness();
+    const hasPassphrase = !!Storage.getPassphrase();
     if (cachedReadiness) {
       const ageMin = cachedReadiness._saved_at ? (Date.now() - cachedReadiness._saved_at) / 60000 : 999;
       this.renderReadinessTile(cachedReadiness, { stale: ageMin > 120 });
+    } else if (hasPassphrase) {
+      this.renderReadinessTile(null, { stale: true, msg: 'Buscando dados...' });
     }
-    if (Storage.getPassphrase()) {
+    if (hasPassphrase) {
       this.fetchReadiness();
     } else if (!cachedReadiness) {
-      // First-time user, no passphrase, no cache — pede a passphrase
       setTimeout(() => this.openPassphraseModal(), 400);
     }
   },
@@ -1287,33 +1289,46 @@ const App = {
       });
       if (r.status === 401) {
         Storage.clearPassphrase();
-        if (last) this.renderReadinessTile(last, { stale: true, error: true });
+        this.renderReadinessTile(last || null, { stale: true, error: true, msg: 'Passphrase invalida' });
         this.openPassphraseModal();
         return;
       }
-      if (r.status === 503 || !r.ok) {
-        if (last) this.renderReadinessTile(last, { stale: true });
+      if (r.status === 503) {
+        this.renderReadinessTile(last || null, { stale: true, msg: 'Token Garmin expirou - sync PC' });
+        return;
+      }
+      if (!r.ok) {
+        this.renderReadinessTile(last || null, { stale: true, msg: `Worker erro ${r.status}` });
         return;
       }
       const data = await r.json();
       Storage.saveReadiness(data);
       this.renderReadinessTile(Storage.getReadiness(), { stale: false });
     } catch (e) {
-      if (last) this.renderReadinessTile(last, { stale: true });
+      this.renderReadinessTile(last || null, { stale: true, msg: 'Sem rede' });
     }
   },
 
   renderReadinessTile(data, opts = {}) {
     const tile = document.getElementById('readiness-tile');
-    if (!data) { tile.style.display = 'none'; return; }
     tile.style.display = 'block';
     tile.classList.toggle('stale', opts.stale === true);
     tile.classList.toggle('error', opts.error === true);
+    if (!data) {
+      tile.innerHTML = `
+        <div class="readiness-tile-header">
+          <div class="readiness-score warn">--</div>
+          <div class="readiness-score-label">READINESS<br>/10</div>
+        </div>
+        <div class="readiness-verdict">${opts.msg || 'Aguardando dados...'}</div>
+        <div class="readiness-footer">Sem cache local ainda</div>`;
+      return;
+    }
     const score = data.score ?? 0;
     const scoreClass = score >= 6 ? '' : 'warn';
     const minutesAgo = data._saved_at ? Math.floor((Date.now() - data._saved_at) / 60000) : 0;
     const ageLabel = opts.stale
-      ? (opts.error ? 'Passphrase invalida' : `Cache de ${minutesAgo}min - sync PC`)
+      ? (opts.msg || (opts.error ? 'Passphrase invalida' : `Cache de ${minutesAgo}min - sync PC`))
       : (minutesAgo === 0 ? 'Agora' : `Atualizado ha ${minutesAgo}min`);
     const m = data.metrics || {};
     const hrvClass = m.hrv_status === 'BALANCED' ? 'green' : m.hrv_status === 'UNBALANCED' ? 'amber' : m.hrv_status === 'LOW' ? 'magenta' : '';
