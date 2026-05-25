@@ -60,10 +60,11 @@ Não há build, lint, testes ou package.json.
 PWA chama um Cloudflare Worker (`garmin-cf-probe`, repo separado em `../garmin-cf-probe/`) que proxia chamadas autenticadas à Garmin Connect API. Tile na home mostra Score 1-10 + métricas (sono, HRV, body battery, ACWR).
 
 - **Auth PWA↔Worker**: passphrase compartilhada (`Authorization: Bearer <passphrase>`), armazenada em `localStorage.wu_auth_passphrase` (modal pede na primeira vez). Worker compara contra Secret `WORKER_SHARED_SECRET` em tempo constante.
-- **Auth Worker↔Garmin**: JWT `di_token` armazenado como Secret `DI_TOKEN` no Worker (TTL ~19h). Refresh diário 2x via Task Scheduler local que invoca `push_secret.py` no repo do Worker.
+- **Auth Worker↔Garmin (Phase 8 — autônomo)**: tokens (`di_token`, `di_refresh_token`, `di_client_id`, `expires_at`) vivem em Cloudflare KV (binding `TOKENS_KV`). Worker faz refresh on-demand (lazy, buffer 5min) E proativo via cron `0 9 * * *` (06h BRT) chamando `https://diauth.garmin.com/di-oauth2-service/oauth/token`. PC não participa do loop normal.
 - **CORS**: Worker libera apenas `https://raid112.github.io`.
-- **Graceful degradation**: 401 reabre modal; 503 (token expirou)/network error → tile renderiza cache com borda amber.
+- **Graceful degradation**: 401 reabre modal; 503 distintos por causa — `refresh_token_dead` (reauth no PC necessária), `kv_empty` (init no PC), genérico (token transient/upstream); tile renderiza cache com borda amber + mensagem específica.
 - **Throttle**: fetch máximo 1x/h. Listener `visibilitychange` atualiza ao voltar do background.
+- **Fallback PC**: se refresh_token estourar (~30 dias), `init_kv.py` no repo do Worker reauth + reseed KV. PC só precisa rodar isso 1x/mês ou menos.
 
 > **Contexto operacional**: detalhes de decisão, riscos, alternativas avaliadas (C1/C2/C3/C4/C6) e roadmap pós-MVP ficam num documento privado no vault de produtividade (não neste repo). Buscar pelo título "Continuação - treino-app e HRV" no vault.
 

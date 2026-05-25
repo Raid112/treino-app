@@ -1294,7 +1294,13 @@ const App = {
         return;
       }
       if (r.status === 503) {
-        this.renderReadinessTile(last || null, { stale: true, msg: 'Token Garmin expirou - sync PC' });
+        let msg = 'Token Garmin expirou - sync PC';
+        try {
+          const body = await r.json();
+          if (body.error === 'refresh_token_dead') msg = 'Reauth Garmin no PC';
+          else if (body.error === 'kv_empty') msg = 'Worker sem tokens - init no PC';
+        } catch {}
+        this.renderReadinessTile(last || null, { stale: true, msg });
         return;
       }
       if (!r.ok) {
