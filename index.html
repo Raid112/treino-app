@@ -644,6 +644,64 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 }
 .modal-actions { display: flex; gap: 8px; }
 .modal-actions .btn { margin-bottom: 0; flex: 1; }
+
+/* === SUPER META CARD === */
+.super-meta-card {
+  background: rgba(255,171,0,0.06); border: 1px solid rgba(255,171,0,0.3);
+  border-radius: var(--radius-md); padding: 14px 16px; margin: 12px 0;
+  box-shadow: inset 0 0 16px rgba(255,171,0,0.04);
+}
+.sm-header {
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  color: var(--neon-amber); letter-spacing: 0.5px; margin-bottom: 4px;
+  text-shadow: 0 0 8px rgba(255,171,0,0.3);
+}
+.sm-mode {
+  font-family: var(--font-display); font-size: 10px; letter-spacing: 1.5px;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.sm-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.sm-label { font-size: 11px; color: var(--text-muted); min-width: 36px; font-family: var(--font-display); letter-spacing: 1px; }
+.sm-input {
+  background: rgba(0,0,0,0.3); border: 1px solid rgba(255,171,0,0.3);
+  border-radius: var(--radius-sm); padding: 10px; color: var(--text-primary);
+  font-size: 20px; font-family: var(--font-display); font-weight: 700;
+  width: 84px; text-align: center;
+}
+.sm-input:focus { outline: none; border-color: var(--neon-amber); box-shadow: 0 0 10px rgba(255,171,0,0.25); }
+.sm-step {
+  background: rgba(255,171,0,0.12); border: 1px solid rgba(255,171,0,0.3);
+  border-radius: var(--radius-sm); color: var(--neon-amber); cursor: pointer;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  padding: 10px 12px; min-width: 44px; transition: all 0.2s ease;
+}
+.sm-step:hover { background: rgba(255,171,0,0.2); }
+.sm-step:active { transform: scale(0.95); }
+.sm-locked { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+.sm-locked strong { color: var(--text-primary); }
+.sm-rpe { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.sm-rpe-btn {
+  background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+  border-radius: 50%; width: 38px; height: 38px; color: var(--text-muted);
+  font-family: var(--font-display); font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sm-rpe-btn.active {
+  background: rgba(255,171,0,0.2); border-color: var(--neon-amber);
+  color: var(--neon-amber); box-shadow: 0 0 12px rgba(255,171,0,0.25);
+}
+.sm-est {
+  font-size: 13px; color: var(--text-primary); margin-top: 8px;
+  padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
+}
+.sm-est strong { color: var(--neon-amber); font-family: var(--font-display); font-size: 16px; }
+.sm-cap { font-size: 11px; color: var(--neon-magenta); margin-top: 6px; font-weight: 600; }
+.set-btn.focus-set { border-color: rgba(255,171,0,0.4); color: var(--neon-amber); }
+.set-btn.focus-set.completed {
+  background: linear-gradient(135deg, rgba(255,171,0,0.25), rgba(255,171,0,0.1));
+  border-color: rgba(255,171,0,0.5); color: var(--neon-amber);
+  box-shadow: 0 0 12px rgba(255,171,0,0.2); animation: none;
+}
   </style>
 </head>
 <body>
@@ -1018,6 +1076,36 @@ const Workout = {
     return entry;
   },
 
+  // Modo da super meta derivado do tema. null = sem super meta (deload, tecnica, taper, recovery, teste).
+  superMetaMode(theme) {
+    if (theme === 'Hipertrofia') return 'reps';   // peso travado, +reps na ultima serie (AMRAP)
+    if (theme === 'Forca' || theme === 'Potencia') return 'carga'; // +carga na 1a serie, reps travado
+    return null;
+  },
+
+  // RPE teto do tema (freio anti-extrapolacao). Usado como assumido quando o user nao informa.
+  rpeCap(theme) {
+    if (theme === 'Hipertrofia') return 8;        // RPE 7-8
+    return 9;                                      // Forca/Potencia RPE 8-9
+  },
+
+  // Inicializa o objeto superMeta no exercicio foco. scheme = {s, r, pct}, weight = peso prescrito.
+  initSuperMeta(theme, scheme, weight) {
+    const mode = this.superMetaMode(theme);
+    if (!mode) return null;
+    return {
+      mode,
+      baseWeight: weight,
+      baseReps: scheme.r,
+      weight,                                      // editavel se mode 'carga'
+      reps: scheme.r,                              // editavel se mode 'reps'
+      rpe: null,                                   // null = assumido = rpeCap(tema)
+      estimated1RM: null,
+      comment: '',
+      focusSetIndex: mode === 'carga' ? 0 : scheme.s - 1  // 1a serie (carga) | ultima (reps)
+    };
+  },
+
   calcBarBreakdown(totalWeight) {
     return [{name:'B20',weight:20},{name:'B10',weight:10}].map(bar => {
       if (totalWeight <= bar.weight) return {name:bar.name, perSide:null};
@@ -1073,7 +1161,8 @@ const Workout = {
         base.exercises.push({
           name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
           planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
-          actual: { weight: null, setsCompleted: 0, completedSetIndices: [] }
+          actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
+            superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null }
         });
       });
     }
@@ -1085,7 +1174,8 @@ const Workout = {
       base.exercises.push({
         name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
         planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
-        actual: { weight: null, setsCompleted: 0, completedSetIndices: [] }
+        actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
+          superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null }
       });
     }
 
@@ -1596,9 +1686,22 @@ const App = {
   },
 
   renderExerciseCard(container, ex, index) {
+    const sm = ex.actual.superMeta;
     const bbHtml = Workout.formatBarBreakdown(ex.planned.weight);
     const div = document.createElement('div');
-    div.className = 'exercise-card';
+    div.className = 'exercise-card' + (sm ? ' has-super-meta' : '');
+
+    // Bloco "Carga real" so quando NAO ha super meta (com super meta, o painel cuida do peso/reps)
+    const cargaRealHtml = sm ? '' : `
+      <div class="exercise-input">
+        <label>Carga real:</label>
+        <input type="number" class="weight-input ex-weight" data-index="${index}" value="${ex.actual.weight || ex.planned.weight}" step="2.5"> kg
+        <span class="bar-toggle-icon" id="icon-input-${index}" style="cursor:pointer;font-size:14px;margin-left:4px;">▼</span>
+      </div>
+      <div class="bar-breakdown" id="bb-input-${index}">
+        <div class="bar-breakdown-inner" id="bb-input-c-${index}">${Workout.formatBarBreakdown(ex.actual.weight || ex.planned.weight)}</div>
+      </div>`;
+
     div.innerHTML = `
       <div class="exercise-header">
         <span class="exercise-name">${ex.name}</span>
@@ -1611,16 +1714,13 @@ const App = {
       <div class="bar-breakdown open" id="bb-scheme-${index}">
         <div class="bar-breakdown-inner">${bbHtml}</div>
       </div>
-      <div class="exercise-input">
-        <label>Carga real:</label>
-        <input type="number" class="weight-input ex-weight" data-index="${index}" value="${ex.actual.weight || ex.planned.weight}" step="2.5"> kg
-        <span class="bar-toggle-icon" id="icon-input-${index}" style="cursor:pointer;font-size:14px;margin-left:4px;">▼</span>
-      </div>
-      <div class="bar-breakdown" id="bb-input-${index}">
-        <div class="bar-breakdown-inner" id="bb-input-c-${index}">${Workout.formatBarBreakdown(ex.actual.weight || ex.planned.weight)}</div>
-      </div>
+      ${cargaRealHtml}
+      ${sm ? this.superMetaHtml(sm, index) : ''}
       <div class="sets-tracker">
-        ${Array(ex.planned.sets).fill(0).map((_,i) => `<button class="set-btn" data-exercise="${index}" data-set="${i}">Set ${i+1}</button>`).join('')}
+        ${Array(ex.planned.sets).fill(0).map((_,i) => {
+          const isFocus = sm && i === sm.focusSetIndex;
+          return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Set ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
+        }).join('')}
       </div>
       <div class="sets-count" id="sets-count-${index}">0/${ex.planned.sets} sets</div>`;
     container.appendChild(div);
@@ -1630,19 +1730,104 @@ const App = {
       document.getElementById(`bb-scheme-${index}`).classList.toggle('open');
       document.getElementById(`icon-scheme-${index}`).classList.toggle('open');
     });
-    const iconInput = div.querySelector(`#icon-input-${index}`);
-    iconInput.addEventListener('click', () => {
-      document.getElementById(`bb-input-${index}`).classList.toggle('open');
-      iconInput.classList.toggle('open');
-    });
-    div.querySelector('.ex-weight').addEventListener('change', e => {
-      const val = parseFloat(e.target.value);
-      this.currentWorkout.exercises[index].actual.weight = val;
-      document.getElementById(`bb-input-c-${index}`).innerHTML = Workout.formatBarBreakdown(val);
-      this.persistWorkout();
-    });
+    if (!sm) {
+      const iconInput = div.querySelector(`#icon-input-${index}`);
+      iconInput.addEventListener('click', () => {
+        document.getElementById(`bb-input-${index}`).classList.toggle('open');
+        iconInput.classList.toggle('open');
+      });
+      div.querySelector('.ex-weight').addEventListener('change', e => {
+        const val = parseFloat(e.target.value);
+        this.currentWorkout.exercises[index].actual.weight = val;
+        document.getElementById(`bb-input-c-${index}`).innerHTML = Workout.formatBarBreakdown(val);
+        this.persistWorkout();
+      });
+    } else {
+      this.wireSuperMeta(div, index);
+    }
     div.querySelectorAll('.set-btn').forEach(btn => {
       btn.addEventListener('click', e => this.toggleSet(e.target));
+    });
+  },
+
+  // HTML do painel de super meta (fricçao invertida: valores base pre-preenchidos)
+  superMetaHtml(sm, index) {
+    const theme = this.currentWorkout.theme;
+    const rpeRange = theme === 'Hipertrofia' ? '7-8' : '8-9';
+    const est = Workout.estimate1RM(sm.weight, sm.reps);
+    const serieLabel = sm.mode === 'carga' ? '1ª série (fresco)' : 'última série (AMRAP)';
+    const editBlock = sm.mode === 'carga' ? `
+      <div class="sm-row">
+        <span class="sm-label">Peso</span>
+        <button class="sm-step" data-sm="${index}" data-field="weight" data-delta="-2.5">−</button>
+        <input type="number" class="sm-input" id="sm-weight-${index}" data-sm="${index}" data-field="weight" value="${sm.weight}" step="2.5">
+        <button class="sm-step" data-sm="${index}" data-field="weight" data-delta="2.5">+2,5</button>
+        <button class="sm-step" data-sm="${index}" data-field="weight" data-delta="5">+5</button>
+      </div>
+      <div class="sm-locked">reps travado: <strong>${sm.reps}</strong></div>` : `
+      <div class="sm-row">
+        <span class="sm-label">Reps</span>
+        <button class="sm-step" data-sm="${index}" data-field="reps" data-delta="-1">−</button>
+        <input type="number" class="sm-input" id="sm-reps-${index}" data-sm="${index}" data-field="reps" value="${sm.reps}" step="1">
+        <button class="sm-step" data-sm="${index}" data-field="reps" data-delta="1">+1</button>
+      </div>
+      <div class="sm-locked">peso travado: <strong>${sm.weight} kg</strong></div>`;
+    return `
+      <div class="super-meta-card" id="sm-card-${index}">
+        <div class="sm-header">⭐ SUPER META · ${serieLabel}</div>
+        <div class="sm-mode">MODO: ${sm.mode === 'carga' ? '+ CARGA' : '+ REPS'}</div>
+        ${editBlock}
+        <div class="sm-rpe">
+          <span class="sm-label">RPE</span>
+          ${[7,8,9].map(r => `<button class="sm-rpe-btn${sm.rpe===r?' active':''}" data-sm="${index}" data-rpe="${r}">${r}</button>`).join('')}
+        </div>
+        <div class="sm-est" id="sm-est-${index}">1RM estimado: <strong>${est} kg</strong></div>
+        <div class="sm-cap">⛔ PARE no RPE ${rpeRange} — não vá à falha</div>
+      </div>`;
+  },
+
+  // Listeners do painel de super meta + estimativa ao vivo
+  wireSuperMeta(div, index) {
+    const refreshEst = () => {
+      const sm = this.currentWorkout.exercises[index].actual.superMeta;
+      const est = Workout.estimate1RM(sm.weight, sm.reps);
+      sm.estimated1RM = est;
+      const estEl = document.getElementById(`sm-est-${index}`);
+      if (estEl) estEl.innerHTML = `1RM estimado: <strong>${est} kg</strong>`;
+      this.persistWorkout();
+    };
+    div.querySelectorAll('.sm-step').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sm = this.currentWorkout.exercises[index].actual.superMeta;
+        const field = btn.dataset.field;
+        let v = (sm[field] || 0) + parseFloat(btn.dataset.delta);
+        v = field === 'reps' ? Math.max(1, Math.round(v)) : Math.max(0, Math.round(v * 2) / 2);
+        sm[field] = v;
+        const input = document.getElementById(`sm-${field}-${index}`);
+        if (input) input.value = v;
+        refreshEst();
+      });
+    });
+    div.querySelectorAll('.sm-input').forEach(input => {
+      input.addEventListener('change', e => {
+        const sm = this.currentWorkout.exercises[index].actual.superMeta;
+        const field = e.target.dataset.field;
+        let v = parseFloat(e.target.value);
+        if (isNaN(v)) { e.target.value = sm[field]; return; }
+        v = field === 'reps' ? Math.max(1, Math.round(v)) : Math.max(0, v);
+        sm[field] = v;
+        e.target.value = v;
+        refreshEst();
+      });
+    });
+    div.querySelectorAll('.sm-rpe-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sm = this.currentWorkout.exercises[index].actual.superMeta;
+        const r = parseInt(btn.dataset.rpe);
+        sm.rpe = (sm.rpe === r) ? null : r; // toggle
+        div.querySelectorAll('.sm-rpe-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rpe) === sm.rpe));
+        this.persistWorkout();
+      });
     });
   },
 
@@ -1986,6 +2171,10 @@ const App = {
     document.querySelectorAll('.ex-weight').forEach(input => {
       const i = parseInt(input.dataset.index);
       w.exercises[i].actual.weight = parseFloat(input.value);
+    });
+    // Exercicio foco com super meta: o peso real vem do painel (nao ha .ex-weight)
+    w.exercises.forEach(ex => {
+      if (ex.actual.superMeta) ex.actual.weight = ex.actual.superMeta.weight;
     });
     if (w.running) {
       w.running.actual.duration = parseFloat(document.getElementById('run-actual-time')?.value) || w.running.actual.duration;
