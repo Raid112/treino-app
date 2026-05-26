@@ -869,6 +869,7 @@ const Storage = {
 
   defaultConfig: {
     oneRM: { squat: 140, bench: 100, deadlift: 180 },
+    oneRMHistory: [],
     currentWeek: 1,
     goal5kPace: ''
   },
@@ -883,8 +884,10 @@ const Storage = {
 
   getConfig() {
     const data = localStorage.getItem(this.KEYS.CONFIG);
-    if (!data) { this.saveConfig(this.defaultConfig); return {...this.defaultConfig, oneRM:{...this.defaultConfig.oneRM}}; }
-    return JSON.parse(data);
+    if (!data) { this.saveConfig(this.defaultConfig); return {...this.defaultConfig, oneRM:{...this.defaultConfig.oneRM}, oneRMHistory:[]}; }
+    const cfg = JSON.parse(data);
+    if (!Array.isArray(cfg.oneRMHistory)) cfg.oneRMHistory = []; // migracao: config antigo sem historico
+    return cfg;
   },
 
   saveConfig(config) { localStorage.setItem(this.KEYS.CONFIG, JSON.stringify(config)); },
@@ -962,6 +965,57 @@ const Storage = {
 const Workout = {
   calcWeight(oneRM, pct) {
     return Math.round(oneRM * pct / 100 / 2.5) * 2.5;
+  },
+
+  // ===== Recalibragem de 1RM (super meta) =====
+
+  // Estimativa de 1RM a partir de peso x reps.
+  // Tabela de coeficientes (canon do Treino Unificado): sweet spot 2/3/5 reps.
+  // Reps fora da tabela (hipertrofia 8+, etc) -> Epley.
+  estimate1RM(weight, reps) {
+    if (!weight || !reps || reps < 1) return 0;
+    if (reps === 1) return weight;
+    const coef = { 2: 0.95, 3: 0.93, 5: 0.87 };
+    const est = coef[reps] ? weight / coef[reps] : weight * (1 + reps / 30);
+    return Math.round(est * 2) / 2; // 0.5kg
+  },
+
+  // Fator de amortecimento por tema: Forca = ancora (cheio); Potencia/Hipertrofia = ruidosos (0.5).
+  recalibrationFactor(theme) {
+    return theme === 'Forca' ? 1.0 : 0.5;
+  },
+
+  // Aplica recalibragem monotonica (so sobe). Muta config.oneRM[lift] e empurra em oneRMHistory.
+  // Retorna a entry criada, ou null se nao subiu (dia ruim / 1RM ja calibrado).
+  // source: 'forca'|'potencia'|'hipertrofia'|'teste_real'|'manual'.
+  recalibrate(config, lift, estimated, theme, trigger = {}, opts = {}) {
+    const current = config.oneRM[lift];
+    const source = opts.source || (theme ? theme.toLowerCase() : 'manual');
+    let proposed;
+    if (opts.allowDescent) {
+      proposed = estimated; // teste real / manual: aplica direto (pode descer)
+    } else {
+      const factor = this.recalibrationFactor(theme);
+      proposed = current + (estimated - current) * factor;
+    }
+    const rounded = Math.round(proposed * 2) / 2; // 0.5kg
+    if (!opts.allowDescent && rounded <= current) return null; // monotonico
+    if (rounded === current) return null;
+    const entry = {
+      date: new Date().toISOString().split('T')[0],
+      lift,
+      from: current,
+      to: rounded,
+      delta: Math.round((rounded - current) * 2) / 2,
+      source,
+      factor: opts.allowDescent ? 1.0 : this.recalibrationFactor(theme),
+      trigger: { weight: trigger.weight ?? null, reps: trigger.reps ?? null, rpe: trigger.rpe ?? null, estimated },
+      comment: trigger.comment || ''
+    };
+    config.oneRM[lift] = rounded;
+    if (!Array.isArray(config.oneRMHistory)) config.oneRMHistory = [];
+    config.oneRMHistory.push(entry);
+    return entry;
   },
 
   calcBarBreakdown(totalWeight) {
