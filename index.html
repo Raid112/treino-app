@@ -1130,6 +1130,20 @@ const Sync = {
   // Escrita commitada: marca pendente e tenta enviar agora.
   commit() { this.setDirty(true); return this.push(); },
 
+  // Reset: jsonbin e a verdade, entao o reset precisa limpar o remoto tambem,
+  // senao o proximo boot puxa o estado antigo de volta. PUT de estado default.
+  async resetRemote() {
+    if (!this.configured()) return true;
+    try {
+      const r = await fetch(this.ENDPOINT, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${Storage.getPassphrase()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: Storage.defaultConfig, history: [], accWeights: {}, savedAt: new Date().toISOString() })
+      });
+      return r.ok;
+    } catch (e) { return false; }
+  },
+
   // Boot: resolve pendencia (push) ou puxa a verdade (pull).
   async boot(onChange) {
     if (!this.configured()) { this.setStatus('local-only'); return; }
@@ -1350,7 +1364,7 @@ const Export = {
 
     const headers = ['date','day_num','day_type','day_name','week','block','theme',
       'exercise','type','planned_sets','planned_reps','planned_pct','planned_weight',
-      'actual_weight','sets_completed','run_target_min','run_zone','run_actual_min',
+      'actual_weight','sets_completed','sm_reps','sm_rpe','sm_est_1rm','run_target_min','run_zone','run_actual_min',
       'run_hr','run_pace','duration_min'];
     const rows = [headers.join(',')];
 
@@ -1358,15 +1372,17 @@ const Export = {
       const dur = w.duration || '';
       if (w.exercises && w.exercises.length) {
         w.exercises.forEach(ex => {
+          const sm = (ex.actual.superMeta && !ex.actual.superMeta.blocked) ? ex.actual.superMeta : null;
           rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
             ex.name,ex.type,ex.planned.sets,ex.planned.reps,ex.planned.percentage,
             ex.planned.weight,ex.actual.weight||'',ex.actual.setsCompleted||0,
+            sm?sm.reps:'',sm?(sm.rpe||''):'',sm?(sm.estimated1RM||''):'',
             '','','','','',dur].join(','));
         });
       }
       if (w.running && w.running.actual) {
         rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
-          'Corrida','running','','','','','','',
+          'Corrida','running','','','','','','','','','',
           w.running.target.min,w.running.target.zone,
           w.running.actual.duration||'',w.running.actual.hr||'',
           w.running.actual.pace||'',dur].join(','));
@@ -1375,7 +1391,7 @@ const Export = {
         w.accessories.forEach(a => {
           rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
             a.name,'accessory',a.sets,a.reps,'','',a.actualWeight||'',
-            a.setsCompleted||0,'','','','','',dur].join(','));
+            a.setsCompleted||0,'','','','','','','','',dur].join(','));
         });
       }
     });
@@ -1464,11 +1480,17 @@ const App = {
 
   setupEventListeners() {
     document.getElementById('btn-export').addEventListener('click', () => Export.downloadCSV());
-    document.getElementById('btn-reset').addEventListener('click', () => {
-      if (confirm('Resetar TODOS os dados? Esta acao nao pode ser desfeita.')) {
-        Storage.clearAll();
-        location.reload();
+    document.getElementById('btn-reset').addEventListener('click', async () => {
+      const msg = Sync.configured()
+        ? 'Resetar TODOS os dados (local E nuvem jsonbin)? Esta acao nao pode ser desfeita.'
+        : 'Resetar TODOS os dados? Esta acao nao pode ser desfeita.';
+      if (!confirm(msg)) return;
+      if (Sync.configured()) {
+        const ok = await Sync.resetRemote(); // limpa o remoto antes, senao o boot restaura
+        if (!ok && !confirm('Falha ao limpar a nuvem (offline?). Resetar so o local mesmo assim? Ao voltar online a nuvem pode restaurar os dados.')) return;
       }
+      Storage.clearAll();
+      location.reload();
     });
     document.getElementById('btn-finish-workout').addEventListener('click', () => this.finishWorkout());
     document.getElementById('btn-cancel-workout').addEventListener('click', () => this.cancelWorkout());
@@ -2478,9 +2500,14 @@ const App = {
       el.innerHTML = workouts.map(w => {
         let details = '';
         if (w.exercises && w.exercises.length) {
-          details += w.exercises.map(ex =>
-            `<div class="history-card-exercise">${ex.name}: ${ex.actual.setsCompleted||0}x${ex.planned.reps} @ ${ex.actual.weight||ex.planned.weight}kg</div>`
-          ).join('');
+          details += w.exercises.map(ex => {
+            let line = `${ex.name}: ${ex.actual.setsCompleted||0}x${ex.planned.reps} @ ${ex.actual.weight||ex.planned.weight}kg`;
+            const sm = ex.actual.superMeta;
+            if (sm && !sm.blocked && sm.estimated1RM) {
+              line += ` <span style="color:var(--neon-amber)">⭐ ${sm.reps} reps @ ${sm.weight}kg${sm.rpe ? ' RPE'+sm.rpe : ''} → 1RM~${sm.estimated1RM}</span>`;
+            }
+            return `<div class="history-card-exercise">${line}</div>`;
+          }).join('');
         }
         if (w.running && w.running.actual) {
           const rd = w.running;
