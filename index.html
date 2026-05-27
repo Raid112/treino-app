@@ -696,6 +696,29 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 }
 .sm-est strong { color: var(--neon-amber); font-family: var(--font-display); font-size: 16px; }
 .sm-cap { font-size: 11px; color: var(--neon-magenta); margin-top: 6px; font-weight: 600; }
+.sm-blocked {
+  background: rgba(255,45,120,0.06); border: 1px solid rgba(255,45,120,0.25);
+  border-radius: var(--radius-md); padding: 12px 14px; margin: 12px 0;
+  font-size: 12px; color: var(--neon-magenta); font-weight: 500;
+}
+/* === RECALIB MODAL === */
+.rc-row {
+  background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px;
+}
+.rc-trigger { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.rc-est { font-size: 12px; color: var(--text-primary); margin-bottom: 6px; }
+.rc-delta {
+  font-family: var(--font-display); font-size: 16px; color: var(--text-primary);
+}
+.rc-delta strong { color: var(--neon-green); text-shadow: 0 0 10px rgba(0,230,118,0.3); }
+.rc-motivo { font-size: 10px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
+.rc-tag {
+  font-family: var(--font-display); font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 12px;
+}
+.rc-tag.green { background: rgba(0,230,118,0.12); color: var(--neon-green); border: 1px solid rgba(0,230,118,0.3); }
+.rc-tag.amber { background: rgba(255,171,0,0.12); color: var(--neon-amber); border: 1px solid rgba(255,171,0,0.3); }
 .set-btn.focus-set { border-color: rgba(255,171,0,0.4); color: var(--neon-amber); }
 .set-btn.focus-set.completed {
   background: linear-gradient(135deg, rgba(255,171,0,0.25), rgba(255,171,0,0.1));
@@ -1685,14 +1708,27 @@ const App = {
     if (restBtn) restBtn.textContent = `DESCANSO ${restLabel}`;
   },
 
+  // Gate B+ (Treino Unificado): readiness ruim => nao oferece super meta. null = sem dado/ok.
+  superMetaBlocked() {
+    const r = Storage.getReadiness();
+    if (!r || !r.metrics) return null; // sem dado de readiness: nao bloqueia
+    const m = r.metrics;
+    if (m.hrv_status === 'LOW') return 'HRV LOW';
+    if (m.sleep_hours != null && m.sleep_hours < 6) return 'sono <6h';
+    return null;
+  },
+
   renderExerciseCard(container, ex, index) {
     const sm = ex.actual.superMeta;
+    const blockReason = sm ? this.superMetaBlocked() : null;
+    if (sm) sm.blocked = !!blockReason;
+    const showSuper = sm && !blockReason;
     const bbHtml = Workout.formatBarBreakdown(ex.planned.weight);
     const div = document.createElement('div');
-    div.className = 'exercise-card' + (sm ? ' has-super-meta' : '');
+    div.className = 'exercise-card' + (showSuper ? ' has-super-meta' : '');
 
-    // Bloco "Carga real" so quando NAO ha super meta (com super meta, o painel cuida do peso/reps)
-    const cargaRealHtml = sm ? '' : `
+    // Bloco "Carga real" so quando NAO ha super meta ativa (com super meta, o painel cuida do peso/reps)
+    const cargaRealHtml = showSuper ? '' : `
       <div class="exercise-input">
         <label>Carga real:</label>
         <input type="number" class="weight-input ex-weight" data-index="${index}" value="${ex.actual.weight || ex.planned.weight}" step="2.5"> kg
@@ -1715,10 +1751,10 @@ const App = {
         <div class="bar-breakdown-inner">${bbHtml}</div>
       </div>
       ${cargaRealHtml}
-      ${sm ? this.superMetaHtml(sm, index) : ''}
+      ${showSuper ? this.superMetaHtml(sm, index) : (blockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${blockReason}) — super meta desativada hoje. Registra o treino normal.</div>` : '')}
       <div class="sets-tracker">
         ${Array(ex.planned.sets).fill(0).map((_,i) => {
-          const isFocus = sm && i === sm.focusSetIndex;
+          const isFocus = showSuper && i === sm.focusSetIndex;
           return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Set ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
         }).join('')}
       </div>
@@ -1730,7 +1766,7 @@ const App = {
       document.getElementById(`bb-scheme-${index}`).classList.toggle('open');
       document.getElementById(`icon-scheme-${index}`).classList.toggle('open');
     });
-    if (!sm) {
+    if (!showSuper) {
       const iconInput = div.querySelector(`#icon-input-${index}`);
       iconInput.addEventListener('click', () => {
         document.getElementById(`bb-input-${index}`).classList.toggle('open');
@@ -2172,9 +2208,11 @@ const App = {
       const i = parseInt(input.dataset.index);
       w.exercises[i].actual.weight = parseFloat(input.value);
     });
-    // Exercicio foco com super meta: o peso real vem do painel (nao ha .ex-weight)
+    // Exercicio foco com super meta ativa: o peso real vem do painel (nao ha .ex-weight).
+    // Se bloqueado (readiness), o peso ja foi capturado via .ex-weight acima.
     w.exercises.forEach(ex => {
-      if (ex.actual.superMeta) ex.actual.weight = ex.actual.superMeta.weight;
+      const sm = ex.actual.superMeta;
+      if (sm && !sm.blocked) ex.actual.weight = sm.weight;
     });
     if (w.running) {
       w.running.actual.duration = parseFloat(document.getElementById('run-actual-time')?.value) || w.running.actual.duration;
@@ -2186,6 +2224,20 @@ const App = {
     w.completed = true;
     w.duration = Math.round((new Date(w.endTime) - new Date(w.startTime)) / 60000);
 
+    // ===== Recalibragem de 1RM (super meta) =====
+    const config = Storage.getConfig();
+    const recalibs = [];
+    w.exercises.forEach(ex => {
+      const sm = ex.actual.superMeta;
+      if (!sm || sm.blocked) return;
+      const est = Workout.estimate1RM(sm.weight, sm.reps);
+      sm.estimated1RM = est;
+      const rpe = sm.rpe || Workout.rpeCap(w.theme); // null => assumido = teto do tema
+      const entry = Workout.recalibrate(config, ex.lift, est, w.theme, { weight: sm.weight, reps: sm.reps, rpe, comment: '' });
+      if (entry) recalibs.push({ entry, name: ex.name, theme: w.theme });
+    });
+    if (recalibs.length) Storage.saveConfig(config); // persiste oneRM novo + oneRMHistory
+
     Storage.saveWorkout(w);
     Storage.clearInProgress();
     Storage.checkWeekAdvance();
@@ -2194,6 +2246,50 @@ const App = {
     if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
     this.showScreen('home');
     this.updateHomeScreen();
+    if (recalibs.length) this.showRecalibModal(recalibs, config);
+  },
+
+  // Modal de feedback do aumento de 1RM (unico momento de "celebracao" do app consulta-first).
+  // Mostra o aumento + rotulo do fator + permite comentario livre (rastreabilidade).
+  showRecalibModal(recalibs, config) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay active';
+    overlay.id = 'recalib-modal';
+    const rows = recalibs.map(r => {
+      const e = r.entry;
+      const integral = e.factor >= 1.0;
+      const tag = integral
+        ? '<span class="rc-tag green">🟢 integral ×1,0</span>'
+        : '<span class="rc-tag amber">🟡 amortecido ×0,5</span>';
+      const motivo = integral ? 'Força, 3 reps — sweet spot' : `${r.theme}, reps fora do sweet spot`;
+      return `
+        <div class="rc-row">
+          <div class="rc-trigger">${r.name} · ${e.trigger.reps} reps @ ${e.trigger.weight} kg · RPE ${e.trigger.rpe}</div>
+          <div class="rc-est">1RM estimado ${e.trigger.estimated} → ${tag}</div>
+          <div class="rc-delta">▲ 1RM: ${e.from} → <strong>${e.to} kg</strong> (+${e.delta})</div>
+          <div class="rc-motivo">${motivo}</div>
+        </div>`;
+    }).join('');
+    overlay.innerHTML = `
+      <div class="modal-card">
+        <h3>▲ 1RM RECALIBRADO</h3>
+        ${rows}
+        <p style="margin-top:14px;">Comentário (opcional) — ex: "dormi mal mas voou", "ombro reclamou":</p>
+        <textarea id="recalib-comment" placeholder="..."></textarea>
+        <div class="modal-actions">
+          <button id="recalib-ok" class="btn btn-primary">Fechar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('recalib-ok').addEventListener('click', () => {
+      const txt = document.getElementById('recalib-comment').value.trim();
+      if (txt) {
+        recalibs.forEach(r => { r.entry.comment = txt; });
+        Storage.saveConfig(config); // re-persiste com comentario
+      }
+      overlay.remove();
+      this.updateHomeScreen(); // reflete oneRM novo no resumo
+    });
   },
 
   cancelWorkout() {
@@ -2220,15 +2316,21 @@ const App = {
   },
 
   saveSettings() {
-    const config = {
-      oneRM: {
-        squat: parseFloat(document.getElementById('input-squat').value),
-        bench: parseFloat(document.getElementById('input-bench').value),
-        deadlift: parseFloat(document.getElementById('input-deadlift').value)
-      },
-      currentWeek: parseInt(document.getElementById('input-week').value),
-      goal5kPace: document.getElementById('input-5k-goal').value
+    const config = Storage.getConfig(); // preserva oneRMHistory e demais campos
+    const newRM = {
+      squat: parseFloat(document.getElementById('input-squat').value),
+      bench: parseFloat(document.getElementById('input-bench').value),
+      deadlift: parseFloat(document.getElementById('input-deadlift').value)
     };
+    // Edicao manual de 1RM: registra no historico (rastreabilidade; permite descida).
+    ['squat','bench','deadlift'].forEach(lift => {
+      const v = newRM[lift];
+      if (!isNaN(v) && v !== config.oneRM[lift]) {
+        Workout.recalibrate(config, lift, v, null, { comment: 'ajuste manual' }, { allowDescent: true, source: 'manual' });
+      }
+    });
+    config.currentWeek = parseInt(document.getElementById('input-week').value);
+    config.goal5kPace = document.getElementById('input-5k-goal').value;
     Storage.saveConfig(config);
     this.showScreen('home');
     this.updateHomeScreen();
