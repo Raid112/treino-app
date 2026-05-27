@@ -741,6 +741,20 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   border-color: rgba(255,206,84,0.5); color: var(--neon-amber);
   box-shadow: 0 0 12px rgba(255,206,84,0.2); animation: none;
 }
+.rc-comp { font-size: 11px; color: var(--neon-amber); margin-bottom: 6px; }
+/* === COMENTARIO DO TREINO === */
+.workout-comment { margin: 4px 0 16px; }
+.workout-comment label {
+  display: block; font-size: 11px; color: var(--text-muted);
+  font-family: var(--font-display); letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.workout-comment textarea {
+  width: 100%; padding: 10px; background: rgba(0,0,0,0.3);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  color: var(--text-primary); font-family: inherit; font-size: 13px;
+  resize: vertical; min-height: 48px; box-sizing: border-box;
+}
+.workout-comment textarea:focus { outline: none; border-color: var(--neon-amber); }
   </style>
 </head>
 <body>
@@ -785,6 +799,10 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
       </div>
     </div>
     <div id="workout-content"></div>
+    <div class="workout-comment">
+      <label for="workout-comment">Comentário do treino (opcional)</label>
+      <textarea id="workout-comment" placeholder="ex: dormi mal mas voou, ombro reclamou..."></textarea>
+    </div>
     <div class="actions-bar">
       <button id="btn-cancel-workout" class="btn btn-secondary">Cancelar</button>
       <button id="btn-finish-workout" class="btn btn-primary">FINALIZAR</button>
@@ -1206,8 +1224,7 @@ const Workout = {
       delta: Math.round((rounded - current) * 2) / 2,
       source,
       factor: opts.allowDescent ? 1.0 : this.recalibrationFactor(theme),
-      trigger: { weight: trigger.weight ?? null, reps: trigger.reps ?? null, rpe: trigger.rpe ?? null, estimated },
-      comment: trigger.comment || ''
+      trigger: { weight: trigger.weight ?? null, reps: trigger.reps ?? null, rpe: trigger.rpe ?? null, estimated }
     };
     config.oneRM[lift] = rounded;
     if (!Array.isArray(config.oneRMHistory)) config.oneRMHistory = [];
@@ -1240,7 +1257,6 @@ const Workout = {
       reps: scheme.r,                              // editavel se mode 'reps'
       rpe: null,                                   // null = assumido = rpeCap(tema)
       estimated1RM: null,
-      comment: '',
       focusSetIndex: mode === 'carga' ? 0 : scheme.s - 1  // 1a serie (carga) | ultima (reps)
     };
   },
@@ -1863,6 +1879,13 @@ const App = {
     const restLabel = restSecR > 0 ? `${restMin}:${String(restSecR).padStart(2,'0')}` : `${restMin} MIN`;
     const restBtn = document.getElementById('btn-rest-timer');
     if (restBtn) restBtn.textContent = `DESCANSO ${restLabel}`;
+
+    // Comentario do treino: restaura valor salvo + persiste ao digitar (vive em w.comment)
+    const commentEl = document.getElementById('workout-comment');
+    if (commentEl) {
+      commentEl.value = w.comment || '';
+      commentEl.oninput = () => { this.currentWorkout.comment = commentEl.value; this.persistWorkout(); };
+    }
   },
 
   // Gate B+ (Treino Unificado): readiness ruim => nao oferece super meta. null = sem dado/ok.
@@ -2373,6 +2396,9 @@ const App = {
     w.completed = true;
     w.duration = Math.round((new Date(w.endTime) - new Date(w.startTime)) / 60000);
 
+    // Comentario do treino (campo livre; vive no treino, nao na mudanca de 1RM)
+    w.comment = (document.getElementById('workout-comment')?.value || '').trim();
+
     // ===== Recalibragem de 1RM (super meta) =====
     const config = Storage.getConfig();
     const recalibs = [];
@@ -2382,8 +2408,12 @@ const App = {
       const est = Workout.estimate1RM(sm.weight, sm.reps);
       sm.estimated1RM = est;
       const rpe = sm.rpe || Workout.rpeCap(w.theme); // null => assumido = teto do tema
-      const entry = Workout.recalibrate(config, ex.lift, est, w.theme, { weight: sm.weight, reps: sm.reps, rpe, comment: '' });
-      if (entry) recalibs.push({ entry, name: ex.name, theme: w.theme });
+      const entry = Workout.recalibrate(config, ex.lift, est, w.theme, { weight: sm.weight, reps: sm.reps, rpe });
+      if (entry) {
+        // Compensacao registrada NO TREINO (sm.recalib) p/ o usuario ser ciente do amortecimento ao revisar
+        sm.recalib = { from: entry.from, to: entry.to, delta: entry.delta, factor: entry.factor, estimated: est };
+        recalibs.push({ entry, name: ex.name, theme: w.theme });
+      }
     });
     if (recalibs.length) Storage.saveConfig(config); // persiste oneRM novo + oneRMHistory
 
@@ -2405,18 +2435,25 @@ const App = {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
     overlay.id = 'recalib-modal';
+    const fmt = v => String(v).replace('.', ',');
     const rows = recalibs.map(r => {
       const e = r.entry;
       const integral = e.factor >= 1.0;
       const tag = integral
         ? '<span class="rc-tag green">🟢 integral ×1,0</span>'
         : '<span class="rc-tag amber">🟡 amortecido ×0,5</span>';
-      const motivo = integral ? 'Força, 3 reps — sweet spot' : `${r.theme}, reps fora do sweet spot`;
+      const motivo = integral ? 'Força, sweet spot' : `${r.theme}, reps fora do sweet spot`;
+      // Compensacao: quanto do ganho bruto (estimado − 1RM atual) foi cortado pelo amortecimento
+      const bruto = Math.round((e.trigger.estimated - e.from) * 2) / 2;
+      const cortado = Math.round((bruto - e.delta) * 2) / 2;
+      const comp = integral ? '' :
+        `<div class="rc-comp">estimou ${fmt(e.trigger.estimated)} kg · creditado ${fmt(e.to)} kg (amortecido ${fmt(cortado)} kg)</div>`;
       return `
         <div class="rc-row">
-          <div class="rc-trigger">${r.name} · ${e.trigger.reps} reps @ ${e.trigger.weight} kg · RPE ${e.trigger.rpe}</div>
-          <div class="rc-est">1RM estimado ${e.trigger.estimated} → ${tag}</div>
-          <div class="rc-delta">▲ 1RM: ${e.from} → <strong>${e.to} kg</strong> (+${e.delta})</div>
+          <div class="rc-trigger">${r.name} · ${e.trigger.reps} reps @ ${fmt(e.trigger.weight)} kg · RPE ${e.trigger.rpe}</div>
+          <div class="rc-est">1RM estimado ${fmt(e.trigger.estimated)} → ${tag}</div>
+          ${comp}
+          <div class="rc-delta">▲ 1RM: ${fmt(e.from)} → <strong>${fmt(e.to)} kg</strong> (+${fmt(e.delta)})</div>
           <div class="rc-motivo">${motivo}</div>
         </div>`;
     }).join('');
@@ -2424,19 +2461,12 @@ const App = {
       <div class="modal-card">
         <h3>▲ 1RM RECALIBRADO</h3>
         ${rows}
-        <p style="margin-top:14px;">Comentário (opcional) — ex: "dormi mal mas voou", "ombro reclamou":</p>
-        <textarea id="recalib-comment" placeholder="..."></textarea>
         <div class="modal-actions">
           <button id="recalib-ok" class="btn btn-primary">Fechar</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('recalib-ok').addEventListener('click', () => {
-      const txt = document.getElementById('recalib-comment').value.trim();
-      if (txt) {
-        recalibs.forEach(r => { r.entry.comment = txt; });
-        Storage.saveConfig(config); // re-persiste com comentario
-      }
       overlay.remove();
       this.updateHomeScreen(); // reflete oneRM novo no resumo
     });
@@ -2498,7 +2528,7 @@ const App = {
     ['squat','bench','deadlift'].forEach(lift => {
       const v = newRM[lift];
       if (!isNaN(v) && v !== config.oneRM[lift]) {
-        Workout.recalibrate(config, lift, v, null, { comment: 'ajuste manual' }, { allowDescent: true, source: 'manual' });
+        Workout.recalibrate(config, lift, v, null, {}, { allowDescent: true, source: 'manual' });
       }
     });
     config.currentWeek = parseInt(document.getElementById('input-week').value);
@@ -2525,7 +2555,15 @@ const App = {
             let line = `${ex.name}: ${ex.actual.setsCompleted||0}x${ex.planned.reps} @ ${ex.actual.weight||ex.planned.weight}kg`;
             const sm = ex.actual.superMeta;
             if (sm && !sm.blocked && sm.estimated1RM) {
-              line += ` <span style="color:var(--neon-amber)">⭐ ${sm.reps} reps @ ${sm.weight}kg${sm.rpe ? ' RPE'+sm.rpe : ''} → 1RM~${sm.estimated1RM}</span>`;
+              const base = `⭐ ${sm.reps} reps @ ${sm.weight}kg${sm.rpe ? ' RPE'+sm.rpe : ''}`;
+              let tail;
+              if (sm.recalib) {
+                const amort = sm.recalib.factor < 1.0 ? ` (×${String(sm.recalib.factor).replace('.',',')})` : '';
+                tail = `→ estimou ${sm.recalib.estimated}, aplicou ${sm.recalib.to}${amort}`;
+              } else {
+                tail = `→ 1RM~${sm.estimated1RM} (sem ganho)`;
+              }
+              line += ` <span style="color:var(--neon-amber)">${base} ${tail}</span>`;
             }
             return `<div class="history-card-exercise">${line}</div>`;
           }).join('');
@@ -2537,6 +2575,10 @@ const App = {
         if (w.accessories) {
           const done = w.accessories.filter(a => a.setsCompleted > 0).length;
           details += `<div class="history-card-exercise" style="color:var(--neon-amber)">Acessorios: ${done}/${w.accessories.length} exercicios</div>`;
+        }
+        if (w.comment) {
+          const safe = w.comment.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          details += `<div class="history-card-exercise" style="color:var(--text-muted);font-style:italic">📝 ${safe}</div>`;
         }
         return `
           <div class="history-card type-${w.dayType}">
