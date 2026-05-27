@@ -742,6 +742,17 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   box-shadow: 0 0 12px rgba(255,206,84,0.2); animation: none;
 }
 .rc-comp { font-size: 11px; color: var(--neon-amber); margin-bottom: 6px; }
+/* === RESUMO DE FIM DE TREINO (planejado vs realizado) === */
+.ws-section-label { font-family: var(--font-display); font-size: 11px; letter-spacing: 1px; color: var(--text-muted); margin: 12px 0 6px; }
+.ws-row {
+  background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px;
+}
+.ws-name { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+.ws-cmp { font-size: 12px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ws-plan { color: var(--text-muted); }
+.ws-real.ok { color: var(--neon-green); font-weight: 700; }
+.ws-real.low { color: var(--neon-amber); font-weight: 700; }
 /* === COMENTARIO DO TREINO === */
 .workout-comment { margin: 4px 0 16px; }
 .workout-comment label {
@@ -1097,8 +1108,21 @@ const Sync = {
   setStatus(s) { localStorage.setItem(this.K_STATUS, s); },
 
   snapshot() {
+    const config = Storage.getConfig();
+    const week = config.currentWeek;
+    const wd = WEEK_DATA[week] || {};
+    const lifts = config.oneRM || {};
+    const total = (lifts.squat || 0) + (lifts.bench || 0) + (lifts.deadlift || 0);
     return {
-      config: Storage.getConfig(),
+      // Cabecalho legivel (so leitura — applyRemote ignora; serve pra inspecionar o jsonbin a olho)
+      summary: `Semana ${week}${wd.theme ? ' — ' + wd.theme : ''} · 1RM total ${total}kg (SQ ${lifts.squat || 0}/BN ${lifts.bench || 0}/DL ${lifts.deadlift || 0})`,
+      currentWeek: week,
+      block: wd.block || null,
+      theme: wd.theme || null,
+      lifts,
+      updatedAt: new Date().toLocaleString('pt-BR'),
+      // Estado canonico (o que applyRemote reidrata)
+      config,
       history: Storage.getWorkouts(),
       accWeights: Storage.getAccWeights(),
       savedAt: new Date().toISOString()
@@ -2390,6 +2414,22 @@ const App = {
       w.running.actual.duration = parseFloat(document.getElementById('run-actual-time')?.value) || w.running.actual.duration;
       w.running.actual.hr = parseFloat(document.getElementById('run-actual-hr')?.value) || null;
       w.running.actual.pace = document.getElementById('run-actual-pace')?.value || null;
+      // Finalizar = feito: corrida sem tempo informado assume o alvo.
+      if (!Number.isFinite(w.running.actual.duration)) w.running.actual.duration = w.running.target.min;
+      w.running.actual.completed = true;
+    }
+
+    // Finalizar = treino feito. Sem marcacao de series, assume execucao conforme o planejado
+    // (o usuario so mexe nos toggles/peso quando fez DIFERENTE do plano).
+    w.exercises.forEach(ex => {
+      if (ex.actual.setsCompleted === 0) {
+        ex.actual.setsCompleted = ex.planned.sets;
+        ex.actual.completedSetIndices = Array.from({ length: ex.planned.sets }, (_, i) => i);
+      }
+      if (!Number.isFinite(ex.actual.weight)) ex.actual.weight = ex.planned.weight;
+    });
+    if (w.accessories) {
+      w.accessories.forEach(acc => { if (!acc.setsCompleted) acc.setsCompleted = acc.sets; });
     }
 
     w.endTime = new Date().toISOString();
@@ -2426,47 +2466,101 @@ const App = {
     if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
     this.showScreen('home');
     this.updateHomeScreen();
-    if (recalibs.length) this.showRecalibModal(recalibs, config);
+    this.showWorkoutSummaryModal(w, recalibs, config);
   },
 
-  // Modal de feedback do aumento de 1RM (unico momento de "celebracao" do app consulta-first).
-  // Mostra o aumento + rotulo do fator + permite comentario livre (rastreabilidade).
-  showRecalibModal(recalibs, config) {
+  // Resumo de fim de treino — sempre abre ao finalizar (consulta-first: este e o momento de fechamento).
+  // 3 secoes: planejado vs realizado (numerico, sem cravar veredito) · 1RM recalibrado (se houve) · corrida.
+  showWorkoutSummaryModal(w, recalibs, config) {
+    const fmt = v => String(v).replace('.', ',');
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay active';
-    overlay.id = 'recalib-modal';
-    const fmt = v => String(v).replace('.', ',');
-    const rows = recalibs.map(r => {
-      const e = r.entry;
-      const integral = e.factor >= 1.0;
-      const tag = integral
-        ? '<span class="rc-tag green">🟢 integral ×1,0</span>'
-        : '<span class="rc-tag amber">🟡 amortecido ×0,5</span>';
-      const motivo = integral ? 'Força, sweet spot' : `${r.theme}, reps fora do sweet spot`;
-      // Compensacao: quanto do ganho bruto (estimado − 1RM atual) foi cortado pelo amortecimento
-      const bruto = Math.round((e.trigger.estimated - e.from) * 2) / 2;
-      const cortado = Math.round((bruto - e.delta) * 2) / 2;
-      const comp = integral ? '' :
-        `<div class="rc-comp">estimou ${fmt(e.trigger.estimated)} kg · creditado ${fmt(e.to)} kg (amortecido ${fmt(cortado)} kg)</div>`;
+    overlay.id = 'workout-summary-modal';
+
+    // Planejado vs realizado (exercicios de forca)
+    const exRows = (w.exercises || []).map(ex => {
+      const p = ex.planned, a = ex.actual;
+      const wgt = Number.isFinite(a.weight) ? a.weight : p.weight;
+      const ok = a.setsCompleted >= p.sets && wgt >= p.weight;
       return `
-        <div class="rc-row">
-          <div class="rc-trigger">${r.name} · ${e.trigger.reps} reps @ ${fmt(e.trigger.weight)} kg · RPE ${e.trigger.rpe}</div>
-          <div class="rc-est">1RM estimado ${fmt(e.trigger.estimated)} → ${tag}</div>
-          ${comp}
-          <div class="rc-delta">▲ 1RM: ${fmt(e.from)} → <strong>${fmt(e.to)} kg</strong> (+${fmt(e.delta)})</div>
-          <div class="rc-motivo">${motivo}</div>
+        <div class="ws-row">
+          <div class="ws-name">${ex.name}</div>
+          <div class="ws-cmp">
+            <span class="ws-plan">plano ${p.sets}×${p.reps} @ ${fmt(p.weight)}kg</span>
+            <span class="ws-real ${ok ? 'ok' : 'low'}">${a.setsCompleted}×${p.reps} @ ${fmt(wgt)}kg ${ok ? '✓' : '⚠'}</span>
+          </div>
         </div>`;
     }).join('');
+
+    // Corrida
+    let runRow = '';
+    if (w.running) {
+      const t = w.running.target, ra = w.running.actual;
+      const dur = ra.duration || 0;
+      const ok = dur >= t.min;
+      runRow = `
+        <div class="ws-row">
+          <div class="ws-name">Corrida · ${t.zone}</div>
+          <div class="ws-cmp">
+            <span class="ws-plan">plano ${t.min}min</span>
+            <span class="ws-real ${ok ? 'ok' : 'low'}">${dur}min${ra.hr ? ' · FC ' + ra.hr : ''} ${ok ? '✓' : '⚠'}</span>
+          </div>
+        </div>`;
+    }
+
+    // Acessorios
+    let accRow = '';
+    if (w.accessories) {
+      const done = w.accessories.filter(a => a.setsCompleted > 0).length;
+      const ok = done >= w.accessories.length;
+      accRow = `
+        <div class="ws-row">
+          <div class="ws-name">Acessórios</div>
+          <div class="ws-cmp">
+            <span class="ws-plan">${w.accessories.length} exercícios</span>
+            <span class="ws-real ${ok ? 'ok' : 'low'}">${done}/${w.accessories.length} ${ok ? '✓' : '⚠'}</span>
+          </div>
+        </div>`;
+    }
+
+    // 1RM recalibrado — so quando houve ganho (super meta batida)
+    let recalibBlock = '';
+    if (recalibs.length) {
+      const rows = recalibs.map(r => {
+        const e = r.entry;
+        const integral = e.factor >= 1.0;
+        const tag = integral
+          ? '<span class="rc-tag green">🟢 integral ×1,0</span>'
+          : '<span class="rc-tag amber">🟡 amortecido ×0,5</span>';
+        const motivo = integral ? 'Força, sweet spot' : `${r.theme}, reps fora do sweet spot`;
+        const bruto = Math.round((e.trigger.estimated - e.from) * 2) / 2;
+        const cortado = Math.round((bruto - e.delta) * 2) / 2;
+        const comp = integral ? '' :
+          `<div class="rc-comp">estimou ${fmt(e.trigger.estimated)} kg · creditado ${fmt(e.to)} kg (amortecido ${fmt(cortado)} kg)</div>`;
+        return `
+          <div class="rc-row">
+            <div class="rc-trigger">${r.name} · ${e.trigger.reps} reps @ ${fmt(e.trigger.weight)} kg · RPE ${e.trigger.rpe}</div>
+            <div class="rc-est">1RM estimado ${fmt(e.trigger.estimated)} → ${tag}</div>
+            ${comp}
+            <div class="rc-delta">▲ 1RM: ${fmt(e.from)} → <strong>${fmt(e.to)} kg</strong> (+${fmt(e.delta)})</div>
+            <div class="rc-motivo">${motivo}</div>
+          </div>`;
+      }).join('');
+      recalibBlock = `<div class="ws-section-label">▲ 1RM RECALIBRADO</div>${rows}`;
+    }
+
     overlay.innerHTML = `
       <div class="modal-card">
-        <h3>▲ 1RM RECALIBRADO</h3>
-        ${rows}
+        <h3>TREINO CONCLUÍDO</h3>
+        <div class="ws-section-label">PLANEJADO vs REALIZADO</div>
+        ${exRows}${runRow}${accRow}
+        ${recalibBlock}
         <div class="modal-actions">
-          <button id="recalib-ok" class="btn btn-primary">Fechar</button>
+          <button id="ws-ok" class="btn btn-primary">Fechar</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    document.getElementById('recalib-ok').addEventListener('click', () => {
+    document.getElementById('ws-ok').addEventListener('click', () => {
       overlay.remove();
       this.updateHomeScreen(); // reflete oneRM novo no resumo
     });
