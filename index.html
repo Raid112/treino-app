@@ -696,6 +696,21 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 }
 .sm-est strong { color: var(--neon-amber); font-family: var(--font-display); font-size: 16px; }
 .sm-cap { font-size: 11px; color: var(--neon-magenta); margin-top: 6px; font-weight: 600; }
+/* === SYNC STATUS === */
+.sync-status {
+  text-align: center; font-size: 11px; color: var(--text-muted);
+  margin-top: 14px; font-family: var(--font-display); letter-spacing: 0.5px;
+}
+.sync-status-settings {
+  font-size: 13px; color: var(--text-muted); padding: 8px 0;
+}
+.sync-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted); margin-right: 4px; vertical-align: middle;
+}
+.sync-dot.ok { background: var(--neon-green); box-shadow: 0 0 8px rgba(95,158,143,0.5); }
+.sync-dot.warn { background: var(--neon-amber); box-shadow: 0 0 8px rgba(212,160,23,0.5); }
+.sync-dot.muted { background: var(--text-muted); }
 .sm-blocked {
   background: rgba(160,82,45,0.06); border: 1px solid rgba(160,82,45,0.25);
   border-radius: var(--radius-md); padding: 12px 14px; margin: 12px 0;
@@ -741,6 +756,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
     <div id="readiness-tile" class="readiness-tile" style="display:none;"></div>
     <div id="week-summary" class="week-summary"></div>
     <div id="session-picker" class="session-picker"></div>
+    <div id="sync-status" class="sync-status"></div>
   </div>
 
   <!-- HISTORY -->
@@ -792,6 +808,9 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
       </div>
       <div class="form-section-title" style="margin-top:24px;">Garmin</div>
       <button id="btn-connect-garmin" class="btn btn-secondary">Conectar Garmin</button>
+      <div class="form-section-title" style="margin-top:24px;">Sincronizacao (jsonbin)</div>
+      <div id="sync-status-settings" class="sync-status-settings"></div>
+      <button id="btn-sync-now" class="btn btn-secondary">Sincronizar agora</button>
       <div class="form-section-title" style="margin-top:24px;">Dados</div>
       <button id="btn-export" class="btn btn-secondary">Exportar CSV</button>
       <button id="btn-reset" class="btn btn-danger">Resetar Dados</button>
@@ -1038,6 +1057,88 @@ const Storage = {
 
   clearAll() {
     Object.values(this.KEYS).forEach(k => localStorage.removeItem(k));
+    ['wu_sync_dirty','wu_sync_status'].forEach(k => localStorage.removeItem(k));
+  }
+};
+
+// ========== SYNC (jsonbin via Worker — fonte da verdade + cache espelho + fila) ==========
+// Modelo: jsonbin = verdade remota. localStorage = espelho de leitura + buffer de escrita.
+// - commit() (fim de treino/settings): marca dirty + PUT. Falha mantem dirty -> retenta no boot.
+// - boot(): se dirty, PUT (nao puxa, pra nao perder escrita offline); senao GET (remoto -> espelho).
+// Sem merge/LWW: 1 device por vez; versionamento do jsonbin = rede de seguranca.
+const Sync = {
+  ENDPOINT: WORKER_URL + '/state',
+  K_DIRTY: 'wu_sync_dirty',
+  K_STATUS: 'wu_sync_status',
+
+  configured() { return !!Storage.getPassphrase(); }, // sem passphrase = so local
+  isDirty() { return localStorage.getItem(this.K_DIRTY) === '1'; },
+  setDirty(v) { localStorage.setItem(this.K_DIRTY, v ? '1' : '0'); },
+  getStatus() { return localStorage.getItem(this.K_STATUS) || (this.configured() ? 'aguardando sync' : 'local-only'); },
+  setStatus(s) { localStorage.setItem(this.K_STATUS, s); },
+
+  snapshot() {
+    return {
+      config: Storage.getConfig(),
+      history: Storage.getWorkouts(),
+      accWeights: Storage.getAccWeights(),
+      savedAt: new Date().toISOString()
+    };
+  },
+
+  applyRemote(doc) {
+    if (!doc || typeof doc !== 'object' || (!doc.config && !Array.isArray(doc.history))) return false;
+    if (doc.config) localStorage.setItem(Storage.KEYS.CONFIG, JSON.stringify(doc.config));
+    if (Array.isArray(doc.history)) localStorage.setItem(Storage.KEYS.WORKOUTS, JSON.stringify(doc.history));
+    if (doc.accWeights) localStorage.setItem(Storage.KEYS.ACC_WEIGHTS, JSON.stringify(doc.accWeights));
+    return true;
+  },
+
+  async push() {
+    if (!this.configured()) { this.setStatus('local-only'); return false; }
+    try {
+      const r = await fetch(this.ENDPOINT, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${Storage.getPassphrase()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.snapshot())
+      });
+      if (!r.ok) { this.setStatus(`erro ${r.status} — pendente`); return false; } // mantem dirty
+      this.setDirty(false);
+      this.setStatus('sincronizado');
+      return true;
+    } catch (e) {
+      this.setStatus('offline — pendente'); // mantem dirty, retenta no proximo boot
+      return false;
+    }
+  },
+
+  async pull() {
+    if (!this.configured()) { this.setStatus('local-only'); return false; }
+    try {
+      const r = await fetch(this.ENDPOINT, { headers: { 'Authorization': `Bearer ${Storage.getPassphrase()}` } });
+      if (!r.ok) { this.setStatus(`erro ${r.status} — cache local`); return false; }
+      const doc = await r.json();
+      const applied = this.applyRemote(doc);
+      this.setStatus(applied ? 'atualizado do servidor' : 'sincronizado');
+      return applied;
+    } catch (e) {
+      this.setStatus('offline — cache local');
+      return false;
+    }
+  },
+
+  // Escrita commitada: marca pendente e tenta enviar agora.
+  commit() { this.setDirty(true); return this.push(); },
+
+  // Boot: resolve pendencia (push) ou puxa a verdade (pull).
+  async boot(onChange) {
+    if (!this.configured()) { this.setStatus('local-only'); return; }
+    if (this.isDirty()) {
+      await this.push();
+    } else {
+      const changed = await this.pull();
+      if (changed && onChange) onChange();
+    }
   }
 };
 
@@ -1338,6 +1439,11 @@ const App = {
     } else if (!cachedReadiness) {
       setTimeout(() => this.openPassphraseModal(), 400);
     }
+
+    // Sync jsonbin (fonte da verdade): resolve pendencia ou puxa remoto pro espelho local.
+    // Re-renderiza a home so se for a tela ativa (nao mexe em treino em progresso).
+    Sync.boot(() => { if (this.currentScreen() === 'home') this.updateHomeScreen(); })
+      .then(() => this.refreshSyncIndicator());
   },
 
   showScreen(id) {
@@ -1389,6 +1495,14 @@ const App = {
     if (btnSave) btnSave.addEventListener('click', () => this.savePassphraseFromModal());
     if (btnCancel) btnCancel.addEventListener('click', () => this.cancelPassphraseModal());
     if (btnConnect) btnConnect.addEventListener('click', () => this.openPassphraseModal());
+    const btnSync = document.getElementById('btn-sync-now');
+    if (btnSync) btnSync.addEventListener('click', async () => {
+      if (!Sync.configured()) { alert('Conecte o Garmin primeiro — a sync usa a mesma passphrase do Worker.'); return; }
+      btnSync.textContent = 'Sincronizando...';
+      if (Sync.isDirty()) await Sync.push(); else await Sync.pull();
+      btnSync.textContent = 'Sincronizar agora';
+      this.showSettings(); // reflete status + config atualizado
+    });
     // Refresh readiness quando app volta do background
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && this.currentScreen() === 'home') {
@@ -1630,6 +1744,28 @@ const App = {
     });
 
     document.getElementById('current-week').textContent = week;
+
+    const ss = this.syncStatusInfo();
+    const sse = document.getElementById('sync-status');
+    if (sse) sse.innerHTML = `<span class="sync-dot ${ss.cls}"></span> Sync: ${ss.text}`;
+  },
+
+  // Classifica o status de sync pra UI (cor). Nunca falha mudo: sempre mostra o estado.
+  syncStatusInfo() {
+    const s = Sync.getStatus();
+    let cls = 'muted';
+    if (/sincronizado|atualizado/.test(s)) cls = 'ok';
+    else if (/pendente|offline|erro/.test(s)) cls = 'warn';
+    return { text: s, cls };
+  },
+
+  // Re-renderiza os indicadores de sync (home + settings) quando o push/pull async conclui.
+  refreshSyncIndicator() {
+    const ss = this.syncStatusInfo();
+    const a = document.getElementById('sync-status');
+    if (a) a.innerHTML = `<span class="sync-dot ${ss.cls}"></span> Sync: ${ss.text}`;
+    const b = document.getElementById('sync-status-settings');
+    if (b) b.innerHTML = `<span class="sync-dot ${ss.cls}"></span> ${ss.text}`;
   },
 
   // ========== WORKOUT ==========
@@ -2231,6 +2367,7 @@ const App = {
     Storage.saveWorkout(w);
     Storage.clearInProgress();
     Storage.checkWeekAdvance();
+    Sync.commit().then(() => this.refreshSyncIndicator()); // PUT do estado no jsonbin (fim do treino; falha fica pendente)
     this.currentWorkout = null;
     this.stopTimer();
     if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
@@ -2302,6 +2439,8 @@ const App = {
     document.getElementById('input-deadlift').value = config.oneRM.deadlift;
     document.getElementById('input-week').value = config.currentWeek;
     document.getElementById('input-5k-goal').value = config.goal5kPace || '';
+    const sss = document.getElementById('sync-status-settings');
+    if (sss) { const ss = this.syncStatusInfo(); sss.innerHTML = `<span class="sync-dot ${ss.cls}"></span> ${ss.text}`; }
     this.showScreen('settings');
   },
 
@@ -2322,6 +2461,7 @@ const App = {
     config.currentWeek = parseInt(document.getElementById('input-week').value);
     config.goal5kPace = document.getElementById('input-5k-goal').value;
     Storage.saveConfig(config);
+    Sync.commit().then(() => this.refreshSyncIndicator()); // PUT do estado no jsonbin (config mudou)
     this.showScreen('home');
     this.updateHomeScreen();
   },
