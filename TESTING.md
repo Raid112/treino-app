@@ -67,23 +67,25 @@ Chamadas diretas a `Workout.*` no console do app (Firefox `javascript_tool`). Te
 
 > Nota de definição descoberta nos testes: no `DAY_DEFS`, cada lift tem 1 dia como `primary` (com super meta) e pode aparecer como `secondary` em outro dia (sem super meta). Ex: deadlift é secondary no D2, primary no D5. Super meta só no dia primary daquele lift — **comportamento correto, não bug**.
 
-## Camada 3 — Sync jsonbin (E2E, pós-deploy Android)
+## Camada 3 — Sync jsonbin (E2E, no Android)
 
-Fora do escopo desta sessão (depende de Bin ID + deploy do Worker pelo usuário). Listado para não esquecer.
+Worker **deployado e validado** (2026-05-27): `STATE_BIN_ID=6a1622a8f47d5c455c3af78b`, `JSONBIN_KEY` (secret), rota `/state` ativa. Validado: jsonbin direto com a Master Key → 200; Worker `/state` sem auth → 401 (rota viva, auth ok). Falta o teste autenticado E2E no Android (precisa da passphrase do app).
 
 | # | Caso | Status |
 |---|------|--------|
-| S1 | GET/PUT happy path no Android | ⏳ bloqueado (deploy) |
-| S2 | Reinstalar/limpar cache restaura do jsonbin | ⏳ bloqueado |
-| S3 | Modo avião → fila → volta online faz PUT | ⏳ bloqueado |
-| S4 | Reset limpa local E remoto | ⏳ bloqueado |
+| S0 | Worker /state deployado + key/bin válidos | ✅ (jsonbin 200, /state 401 sem auth) |
+| S1 | GET/PUT happy path no Android | ⏳ testar no celular |
+| S2 | Reinstalar/limpar cache restaura do jsonbin | ⏳ testar no celular |
+| S3 | Modo avião → fila → volta online faz PUT | ⏳ testar no celular |
+| S4 | Reset limpa local E remoto | ⏳ testar no celular |
 
 ---
 
 ## Pendências / decisões abertas
 
 - [ ] **CSV não inclui compensação.** `generateCSV` tem `sm_reps/sm_rpe/sm_est_1rm` mas não `sm_recalib_applied`/`factor`. Min-change: não adicionar agora. Reavaliar se o usuário exportar para análise.
-- [ ] **Deploy do Worker** (`wrangler secret put JSONBIN_KEY` + `STATE_BIN_ID` no wrangler.toml) — pelo usuário.
+- [x] **Deploy do Worker** — feito 2026-05-27 (`STATE_BIN_ID` + `JSONBIN_KEY` secret + `wrangler deploy`). ⚠ Master Key foi colada no chat — **rotacionar no jsonbin** e re-rodar `wrangler secret put JSONBIN_KEY`.
+- [ ] **Teste E2E do sync no Android** (S1–S4 acima).
 - [ ] **Deletar a Spec temporária** após validação E2E.
 - [ ] **sw.js cache** bump a cada deploy (v6 → v7 nesta rodada).
 
