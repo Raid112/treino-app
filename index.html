@@ -1487,7 +1487,12 @@ const App = {
     const hasPassphrase = !!Storage.getPassphrase();
     if (cachedReadiness) {
       const ageMin = cachedReadiness._saved_at ? (Date.now() - cachedReadiness._saved_at) / 60000 : 999;
-      this.renderReadinessTile(cachedReadiness, { stale: ageMin > 120 });
+      if (!hasPassphrase) {
+        this.renderReadinessTile(cachedReadiness, { stale: true, msg: 'Passphrase ausente — toque para reconectar' });
+        setTimeout(() => this.openPassphraseModal(), 600);
+      } else {
+        this.renderReadinessTile(cachedReadiness, { stale: ageMin > 120 });
+      }
     } else if (hasPassphrase) {
       this.renderReadinessTile(null, { stale: true, msg: 'Buscando dados...' });
     }
