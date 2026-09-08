@@ -831,7 +831,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
       <div class="form-section-title">Corrida</div>
       <div class="form-group"><label for="input-5k-goal">Meta 5K Pace (min/km)</label><input type="text" id="input-5k-goal" placeholder="5:30" value=""></div>
       <div class="form-section-title">Programa</div>
-      <div class="form-group"><label for="input-week">Semana Atual (1-24)</label><input type="number" id="input-week" min="1" max="24" value="1"></div>
+      <div class="form-group"><label for="input-week">Semana do bloco (1-6)</label><input type="number" id="input-week" min="1" max="6" value="1"></div>
       <div class="actions-bar">
         <button id="btn-back-settings" class="btn btn-secondary">Voltar</button>
         <button id="btn-save-settings" class="btn btn-primary">Salvar</button>
@@ -866,69 +866,67 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <script>
 // ========== DATA CONSTANTS ==========
 
+const BLOCO_DES694 = {
+  id: 'B1-2026-09-07', inicio: '2026-09-07', validoAte: '2026-10-18',
+  semanas: 6, metaDominante: 'saude+cut',
+  // Espelho de loops/bloco/bloco.json (KpiMaster). O Esqueleto e estavel pelas 6
+  // semanas, entao pode viver estatico aqui. O Contrato semanal NAO vive aqui:
+  // ele e gerado por loops/bin/contrato_semanal.py e muda toda segunda.
+  corrida: { fcCap: 150, zona: 'Z2', qualidadePermitida: false,
+             sessaoMinimaMin: 20, volumeTetoMin: 120, sessoesAlvo: 3,
+             teEsperado: [2.0, 2.9] },
+  forca:   { rpeAlvo: 8, rpeMaxGateVerde: 9, sessoes: [2, 3], semSingles: true },
+  testeSaida: { tipo: '5k_rua', semana: 6, condicoes: 'recovery.flag verde e sem dor' },
+  alvos: { teste5kMax: '34:00', pesoMa7Max: 101.5, e1rmMin: 446 }
+};
+
+// Forca do bloco 1. RPE 8 e o teto (9 so com gate verde) — os % sao a sugestao de
+// carga de partida, e a recalibragem corrige a partir do que foi levantado.
+// `sem_singles: true` do bloco = nenhuma semana emite r:1.
+// Temas reusam chaves existentes de EXECUTION_PROFILES de proposito: tema novo
+// quebraria EXECUTION_PROFILES[w.theme].label e sumiria com a super meta.
 const WEEK_DATA = {
-  1:  { theme:'Hipertrofia', block:'Acumulacao',     bn:1, p:{s:4,r:8,pct:68},  sec:{s:3,r:8,pct:65} },
-  2:  { theme:'Forca',       block:'Acumulacao',     bn:1, p:{s:4,r:5,pct:78},  sec:{s:3,r:5,pct:75} },
-  3:  { theme:'Potencia',    block:'Acumulacao',     bn:1, p:{s:4,r:3,pct:82},  sec:{s:3,r:3,pct:78} },
-  4:  { theme:'Hipertrofia', block:'Acumulacao',     bn:1, p:{s:4,r:8,pct:70},  sec:{s:3,r:8,pct:67} },
-  5:  { theme:'Forca',       block:'Acumulacao',     bn:1, p:{s:4,r:5,pct:80},  sec:{s:3,r:5,pct:77} },
-  6:  { theme:'Deload',      block:'Acumulacao',     bn:1, p:{s:3,r:5,pct:60},  sec:{s:2,r:5,pct:58}, deload:true },
-  7:  { theme:'Hipertrofia', block:'Transmutacao I', bn:2, p:{s:4,r:6,pct:72},  sec:{s:3,r:6,pct:70} },
-  8:  { theme:'Forca',       block:'Transmutacao I', bn:2, p:{s:5,r:3,pct:83},  sec:{s:3,r:3,pct:80} },
-  9:  { theme:'Potencia',    block:'Transmutacao I', bn:2, p:{s:5,r:2,pct:85},  sec:{s:3,r:2,pct:82} },
-  10: { theme:'Hipertrofia', block:'Transmutacao I', bn:2, p:{s:4,r:6,pct:74},  sec:{s:3,r:6,pct:72} },
-  11: { theme:'Forca',       block:'Transmutacao I', bn:2, p:{s:5,r:3,pct:85},  sec:{s:3,r:3,pct:82} },
-  12: { theme:'Deload',      block:'Transmutacao I', bn:2, p:{s:3,r:5,pct:62},  sec:{s:2,r:5,pct:60}, deload:true },
-  13: { theme:'Forca',       block:'Transmutacao II',bn:3, p:{s:5,r:3,pct:85},  sec:{s:3,r:3,pct:82} },
-  14: { theme:'Potencia',    block:'Transmutacao II',bn:3, p:{s:5,r:2,pct:88},  sec:{s:3,r:2,pct:85} },
-  15: { theme:'Forca',       block:'Transmutacao II',bn:3, p:{s:4,r:3,pct:87},  sec:{s:3,r:3,pct:84} },
-  16: { theme:'Potencia',    block:'Transmutacao II',bn:3, p:{s:4,r:2,pct:90},  sec:{s:3,r:2,pct:87} },
-  17: { theme:'Forca',       block:'Transmutacao II',bn:3, p:{s:4,r:2,pct:90},  sec:{s:3,r:2,pct:87} },
-  18: { theme:'Deload',      block:'Transmutacao II',bn:3, p:{s:3,r:3,pct:65},  sec:{s:2,r:3,pct:62}, deload:true },
-  19: { theme:'Forca',       block:'Realizacao',     bn:4, p:{s:3,r:2,pct:92},  sec:{s:3,r:3,pct:82} },
-  20: { theme:'Tecnica',     block:'Realizacao',     bn:4, p:{s:4,r:3,pct:80},  sec:{s:3,r:3,pct:78} },
-  21: { theme:'Taper Forca', block:'Realizacao',     bn:4, p:{s:3,r:1,pct:88},  sec:{s:2,r:1,pct:85}, taper:true },
-  22: { theme:'1RM Test',    block:'Realizacao',     bn:4, special:'1rm_test' },
-  23: { theme:'Recovery',    block:'Realizacao',     bn:4, p:{s:2,r:5,pct:50},  sec:{s:2,r:5,pct:50}, special:'recovery' },
-  24: { theme:'Recovery',    block:'Realizacao',     bn:4, p:{s:2,r:5,pct:50},  sec:{s:2,r:5,pct:50}, special:'recovery', specialRun:'5k_test' }
+  1: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:75}, sec:{s:2,r:5,pct:70} },
+  2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72} },
+  3: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:80}, sec:{s:2,r:5,pct:75} },
+  4: { theme:'Deload', block:'Deload',      bn:1, p:{s:2,r:5,pct:62}, sec:{s:2,r:5,pct:58}, deload:true },
+  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76} },
+  6: { theme:'Deload', block:'Teste 5K',    bn:1, p:{s:2,r:5,pct:65}, sec:{s:2,r:5,pct:60},
+       deload:true, specialRun:'5k_test',
+       nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
 };
 
-const RUNNING_DATA = {
-  1:  { longRun:{min:25,zone:'Z2'}, media:{min:20,zone:'Z2'}, quality:{min:20,zone:'Z2'}, total:65, note:'MAF Test' },
-  2:  { longRun:{min:28,zone:'Z2'}, media:{min:22,zone:'Z2'}, quality:{min:22,zone:'Z2'}, total:72 },
-  3:  { longRun:{min:30,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:22,zone:'Z2'}, total:77 },
-  4:  { longRun:{min:22,zone:'Z2'}, media:{min:18,zone:'Z2'}, quality:{min:18,zone:'Z2'}, total:58, note:'DELOAD' },
-  5:  { longRun:{min:35,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:29,zone:'Z2'}, total:92 },
-  6:  { longRun:{min:38,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:98 },
-  7:  { longRun:{min:42,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:31,zone:'Z2'}, total:105 },
-  8:  { longRun:{min:30,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:23,zone:'Z2'}, total:78, note:'DELOAD' },
-  9:  { longRun:{min:45,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:31,zone:'Z2'}, total:108 },
-  10: { longRun:{min:48,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:34,zone:'Z2'}, total:115 },
-  11: { longRun:{min:52,zone:'Z2'}, media:{min:37,zone:'Z2'}, quality:{min:36,zone:'Z2'}, total:125 },
-  12: { longRun:{min:38,zone:'Z2'}, media:{min:28,zone:'Z2'}, quality:{min:26,zone:'Z2'}, total:92, note:'MAF Test + DELOAD' },
-  13: { longRun:{min:45,zone:'Z2'}, media:{min:32,zone:'Z2'}, quality:{min:35,zone:'Quality'}, total:112, note:'Intervalados', noteWarning:'RPE 7 / FC ≤155 bpm (Decisão #3)' },
-  14: { longRun:{min:48,zone:'Z2'}, media:{min:34,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:120, noteWarning:'RPE 7 / FC ≤155 bpm (Decisão #3)' },
-  15: { longRun:{min:52,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:38,zone:'Quality'}, total:128, note:'Liberar RPE 8 / FC ≤160 bpm' },
-  16: { longRun:{min:45,zone:'Z2'}, media:{min:33,zone:'Z2'}, quality:{min:30,zone:'Quality'}, total:108 },
-  17: { longRun:{min:50,zone:'Z2'}, media:{min:38,zone:'Z2'}, quality:{min:37,zone:'Quality'}, total:125, note:'Tempo runs' },
-  18: { longRun:{min:55,zone:'Z2'}, media:{min:40,zone:'Z2'}, quality:{min:37,zone:'Quality'}, total:132 },
-  19: { longRun:{min:58,zone:'Z2'}, media:{min:42,zone:'Z2'}, quality:{min:40,zone:'Quality'}, total:140 },
-  20: { longRun:{min:40,zone:'Z2'}, media:{min:30,zone:'Z2'}, quality:{min:30,zone:'Z2'}, total:100, note:'DELOAD' },
-  21: { longRun:{min:55,zone:'Z2'}, media:{min:40,zone:'Z2'}, quality:{min:33,zone:'Pace'}, total:128, note:'Pace-specific' },
-  22: { longRun:{min:30,zone:'Z2'}, media:{min:25,zone:'Z2'}, quality:{min:25,zone:'Z2'}, total:80, note:'Semana TESTE 1RM' },
-  23: { longRun:{min:25,zone:'Z2'}, media:{min:12,zone:'Pace'}, quality:{min:25,zone:'Z2'}, total:62, note:'Recovery ativa + 1 pace run curta' },
-  24: { longRun:{min:20,zone:'Z2'}, media:{min:15,zone:'Z2'}, quality:{min:0,zone:'5K Teste'}, total:50, note:'TESTE 5K' }
-};
+// RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
+// O volume semanal de corrida e do contrato (loops/corrida/plano.md), gerado toda
+// segunda por contrato_semanal.py a partir de aderencia, ACWR, HRV e sono. Manter
+// uma tabela de minutos aqui criaria um segundo dono para o mesmo numero — e e
+// exatamente assim que ele fica errado. O app espelha so o guardrail por sessao
+// (que vem do Esqueleto e nao muda dentro do bloco) e registra o executado.
+function runLabel(dayDef, wd) {
+  if (wd.specialRun === '5k_test' && dayDef.run === 'longa') return '5K TESTE';
+  const c = BLOCO_DES694.corrida;
+  return `≥${c.sessaoMinimaMin}min ${c.zona} · FC ≤ ${c.fcCap}`;
+}
 
+function runTargetFor(dayDef) {
+  const c = BLOCO_DES694.corrida;
+  return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.zona, fcCap: c.fcCap,
+           tipo: dayDef.run || 'base' };
+}
+
+// 3 dias de barra + 3 de corrida + acessorios. O bloco pede forca 2-3x/semana;
+// os 4 dias de barra do plano antigo estouravam o teto com o cut em curso.
+// Cada lift e primary uma vez. Deadlift so 1x/semana: custo de fadiga alto e o
+// bloco e de manutencao, nao de progressao.
 const DAY_DEFS = [
   { day:1, type:'combined',    name:'Squat + Corrida',    sugDay:'Seg', color:'purple',
-    strength:{lift:'squat',    level:'primary'}, run:'media', runCtx:'muscu' },
-  { day:2, type:'combined',    name:'Deadlift + Corrida', sugDay:'Ter', color:'purple',
-    strength:{lift:'deadlift', level:'secondary'}, run:'quality', runCtx:'muscu' },
+    strength:{lift:'squat',    level:'primary'}, run:'base', runCtx:'muscu' },
+  { day:2, type:'running',     name:'Corrida Z2',         sugDay:'Ter', color:'green',
+    run:'base', runCtx:'solo' },
   { day:3, type:'strength',    name:'Bench + Squat',      sugDay:'Qua', color:'cyan',
     exercises:[{lift:'bench',level:'primary'},{lift:'squat',level:'secondary'}] },
-  { day:4, type:'running',     name:'Long Run',           sugDay:'Qui', color:'green',
-    run:'longRun', runCtx:'solo' },
+  { day:4, type:'running',     name:'Corrida Z2 (longa)', sugDay:'Qui', color:'green',
+    run:'longa', runCtx:'solo' },
   { day:5, type:'strength',    name:'Deadlift + Bench',   sugDay:'Sex', color:'cyan',
     exercises:[{lift:'deadlift',level:'primary'},{lift:'bench',level:'secondary'}] },
   { day:6, type:'accessories', name:'Acessorios',         sugDay:'Sab', color:'amber' }
@@ -959,11 +957,8 @@ const EXECUTION_PROFILES = {
 const LIFT_NAMES = { squat:'Squat', bench:'Bench Press', deadlift:'Deadlift' };
 
 const ZONE_INFO = {
-  'Z2':      { fc:'130-150 bpm', desc:'Aerobico base' },
-  'Quality': { fc:'150-160 bpm', desc:'Intervalados' },
-  'Pace':    { fc:'145-155 bpm', desc:'Pace especifico' },
-  'Easy':    { fc:'<130 bpm',    desc:'Recuperacao' },
-  '5K Teste':{ fc:'Max effort',  desc:'Teste 5K' }
+  'Z2':      { fc:'<= 150 bpm', desc:'Base aerobica (fc_cap do bloco)' },
+  '5K Teste':{ fc:'Max effort', desc:'Teste de saida do bloco' }
 };
 
 const CADENCE_TARGETS = {
@@ -976,10 +971,10 @@ const WORKER_URL = 'https://garmin-cf-probe.caiocpagliarani.workers.dev';
 const READINESS_FETCH_MIN_INTERVAL_MS = 60 * 60 * 1000; // 1h throttle
 
 function getAccSets(week) {
-  if (week >= 21) return 0;
-  if (week >= 19) return -2;
-  if (week >= 13) return -1;
-  return 0;
+  // Deload e semana de teste cortam serie de acessorio; o resto roda cheio.
+  // Os cortes antigos (>=13, >=19, >=21) eram do plano de 24 semanas e nunca
+  // disparariam num bloco de 6.
+  return (WEEK_DATA[week] && WEEK_DATA[week].deload) ? -1 : 0;
 }
 
 // ========== STORAGE ==========
@@ -1017,6 +1012,16 @@ const Storage = {
     if (!data) { this.saveConfig(this.defaultConfig); return {...this.defaultConfig, oneRM:{...this.defaultConfig.oneRM}, oneRMHistory:[]}; }
     const cfg = JSON.parse(data);
     if (!Array.isArray(cfg.oneRMHistory)) cfg.oneRMHistory = []; // migracao: config antigo sem historico
+    // Migracao DES-694: o plano caiu de 24 para 6 semanas. Vive AQUI, no caminho de
+    // leitura, e nao num passo de boot, porque Sync.applyRemote() escreve o config
+    // direto no localStorage — um jsonbin com currentWeek 14 voltaria a quebrar
+    // WEEK_DATA[week] depois de qualquer migracao unica.
+    const SEM = BLOCO_DES694.semanas;
+    if (!(cfg.currentWeek >= 1 && cfg.currentWeek <= SEM)) {
+      cfg.weekMigratedFrom = cfg.currentWeek;   // consumido pelo aviso da home
+      cfg.currentWeek = Math.min(SEM, Math.max(1, parseInt(cfg.currentWeek) || 1));
+      this.saveConfig(cfg);
+    }
     return cfg;
   },
 
@@ -1048,8 +1053,8 @@ const Storage = {
     const config = this.getConfig();
     const completed = this.getCompletedDaysForWeek(config.currentWeek);
     const week = config.currentWeek;
-    const required = week >= 21 ? [1,2,3,4,5] : [1,2,3,4,5,6];
-    if (required.every(d => completed.includes(d)) && week < 24) {
+    const required = [1,2,3,4,5,6];
+    if (required.every(d => completed.includes(d)) && week < BLOCO_DES694.semanas) {
       this.updateWeek(week + 1);
     }
   },
@@ -1303,7 +1308,6 @@ const Workout = {
     const dayDef = DAY_DEFS[dayNum - 1];
     const week = config.currentWeek;
     const wd = WEEK_DATA[week];
-    const rd = RUNNING_DATA[week];
     const today = new Date().toISOString().split('T')[0];
 
     const base = {
@@ -1358,13 +1362,15 @@ const Workout = {
       });
     }
 
-    // Running
-    if ((dayDef.type === 'running' || dayDef.type === 'combined') && rd) {
-      const runKey = dayDef.run;
-      const runInfo = rd[runKey];
+    // Running — alvo por sessao vem do Esqueleto; o volume da semana e do contrato.
+    if (dayDef.type === 'running' || dayDef.type === 'combined') {
+      const t = runTargetFor(dayDef);
+      const teste = wd.specialRun === '5k_test' && dayDef.run === 'longa';
       base.running = {
-        target: { min: runInfo.min, zone: runInfo.zone },
-        note: rd.note || null,
+        target: teste ? { min: null, zone: '5K Teste', fcCap: null, minEhPiso: false }
+                      : { min: t.min, zone: t.zone, fcCap: t.fcCap, minEhPiso: true },
+        note: teste ? 'Teste de saida: 5K de rua. So com recovery.flag verde e sem dor.'
+                    : 'Volume da semana vem do contrato (loops/corrida/plano.md).',
         actual: { completed: false, duration: null, hr: null, pace: null }
       };
     }
@@ -1372,7 +1378,7 @@ const Workout = {
     // Accessories
     if (dayDef.type === 'accessories') {
       const adj = getAccSets(week);
-      if (adj === 0 && week < 21) {
+      if (adj === 0) {
         const accWeights = Storage.getAccWeights();
         base.accessories = ACCESSORIES.map(a => ({
           ...a,
@@ -1380,7 +1386,7 @@ const Workout = {
           setsCompleted: 0,
           completedSetIndices: []
         }));
-      } else if (week < 21) {
+      } else {
         const accWeights = Storage.getAccWeights();
         base.accessories = ACCESSORIES.map(a => ({
           ...a,
@@ -1718,17 +1724,21 @@ const App = {
     const config = Storage.getConfig();
     const week = config.currentWeek;
     const wd = WEEK_DATA[week];
-    const rd = RUNNING_DATA[week];
 
     // Week summary (compact)
     const total = config.oneRM.squat + config.oneRM.bench + config.oneRM.deadlift;
     const TARGET = 454;
     const pct1k = Math.min((total / TARGET) * 100, 100);
     const runDone = Storage.getCompletedRunMinutes(week);
-    const runTarget = rd.total;
-    const pct5k = runTarget > 0 ? Math.min((runDone / runTarget) * 100, 100) : 0;
-    const noteHtml = rd.note ? `<div class="week-summary-note">${rd.note}</div>` : '';
-    const warnHtml = rd.noteWarning ? `<div class="week-summary-warning">⚠ ${rd.noteWarning}</div>` : '';
+    // Denominador e o TETO do bloco, nao um alvo: o alvo da semana e do contrato e o
+    // app nao o conhece. Rotulado como teto pra nao ser lido como meta.
+    const runTarget = BLOCO_DES694.corrida.volumeTetoMin;
+    const pct5k = Math.min((runDone / runTarget) * 100, 100);
+    const noteHtml = wd.nota ? `<div class="week-summary-note">${wd.nota}</div>` : '';
+    // Erro nunca fica mudo (CLAUDE.md): se o config veio de um plano antigo, diz.
+    const warnHtml = config.weekMigratedFrom
+      ? `<div class="week-summary-warning">⚠ Semana ${config.weekMigratedFrom} era do plano de 24 semanas; realinhada para ${week} (bloco ${BLOCO_DES694.id}).</div>`
+      : (wd.deload ? `<div class="week-summary-warning">⚠ Semana de deload</div>` : '');
 
     document.getElementById('week-summary').innerHTML = `
       <div class="week-summary-title">Semana ${week} — ${wd.block}</div>
@@ -1746,7 +1756,7 @@ const App = {
         </div>
         <div class="week-summary-goal">
           <div class="week-summary-goal-label">CORRIDA</div>
-          <div><span class="week-summary-goal-value">${runDone}</span><span class="week-summary-goal-target">/${runTarget}min</span></div>
+          <div><span class="week-summary-goal-value">${runDone}</span><span class="week-summary-goal-target">/${runTarget}min teto</span></div>
           <div class="week-summary-goal-pct green">${Math.round(pct5k)}%</div>
           <div class="week-summary-track"><div class="week-summary-fill green" style="width:${pct5k}%"></div></div>
         </div>
@@ -1761,16 +1771,6 @@ const App = {
     const picker = document.getElementById('session-picker');
     picker.innerHTML = DAY_DEFS.map(dd => {
       const done = Storage.isDayCompleted(dd.day);
-      const skipAcc = dd.type === 'accessories' && week >= 21;
-      if (skipAcc) return `
-        <div class="session-card type-${dd.type} completed" style="opacity:0.4">
-          <div class="session-card-header">
-            <span class="session-card-title">D${dd.day} ${dd.name}</span>
-            <span class="session-card-badge">SKIP</span>
-          </div>
-          <div class="session-card-scheme">Semana de taper — sem acessorios</div>
-        </div>`;
-
       let scheme = '';
       if (dd.type === 'strength' && wd.p && !wd.special) {
         const ex = dd.exercises[0];
@@ -1780,13 +1780,9 @@ const App = {
       } else if (dd.type === 'combined' && wd.p && !wd.special) {
         const s = dd.strength.level === 'primary' ? wd.p : wd.sec;
         const w = Workout.calcWeight(config.oneRM[dd.strength.lift], s.pct);
-        const runInfo = rd[dd.run];
-        const zi = ZONE_INFO[runInfo.zone];
-        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runInfo.min}min ${runInfo.zone}</strong>${zi ? ` <span style="font-size:10px;color:var(--text-muted)">${zi.fc}</span>` : ''}`;
+        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runLabel(dd, wd)}</strong>`;
       } else if (dd.type === 'running') {
-        const runInfo = rd[dd.run];
-        const zi = ZONE_INFO[runInfo.zone];
-        scheme = `<strong class="green">${runInfo.min}min ${runInfo.zone}</strong>${zi ? ` <span style="font-size:10px;color:var(--text-muted)">${zi.fc}</span>` : ''}`;
+        scheme = `<strong class="green">${runLabel(dd, wd)}</strong>`;
       } else if (dd.type === 'accessories') {
         scheme = `<strong class="amber">7 exercicios</strong>`;
       } else if (wd.special === '1rm_test') {
@@ -2630,7 +2626,9 @@ const App = {
         Workout.recalibrate(config, lift, v, null, {}, { allowDescent: true, source: 'manual' });
       }
     });
-    config.currentWeek = parseInt(document.getElementById('input-week').value);
+    const wIn = parseInt(document.getElementById('input-week').value);
+    config.currentWeek = Math.max(1, Math.min(BLOCO_DES694.semanas, isNaN(wIn) ? 1 : wIn));
+    delete config.weekMigratedFrom;   // escolha explicita do Caio encerra o aviso
     config.goal5kPace = document.getElementById('input-5k-goal').value;
     Storage.saveConfig(config);
     Sync.commit().then(() => this.refreshSyncIndicator()); // PUT do estado no jsonbin (config mudou)
@@ -2697,7 +2695,7 @@ const App = {
 
   changeWeek(delta) {
     const config = Storage.getConfig();
-    const nw = Math.max(1, Math.min(24, config.currentWeek + delta));
+    const nw = Math.max(1, Math.min(BLOCO_DES694.semanas, config.currentWeek + delta));
     Storage.updateWeek(nw);
     this.updateHomeScreen();
   },

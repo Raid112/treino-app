@@ -1,12 +1,12 @@
 # Treino Unificado
 
-PWA de treino de força com periodização DUP de 24 semanas, corrida e acessórios. Single-file (`index.html`), 100% client-side, offline-first. Usado primariamente como app standalone no Android.
+PWA de treino de força que executa o bloco de 6 semanas da DES-694, com corrida e acessórios. Single-file (`index.html`), 100% client-side, offline-first. Usado primariamente como app standalone no Android.
 
 🔗 **App**: https://raid112.github.io/treino-app/
 
 ## Features
 
-- **Periodização DUP 24 semanas** — 4 blocos (Acumulação → Transmutação I → Transmutação II → Realização), temas por semana (Hipertrofia / Força / Potência / Deload / Técnica / Taper / 1RM Test / Recovery), com corrida e acessórios integrados.
+- **Bloco de 6 semanas (`B1-2026-09-07`)** — base em cut: força 3×/semana a RPE 8 (9 só com recuperação verde) e sem singles, corrida 3×/semana em Z2 com FC ≤ 150 e sem qualidade, deload na 4, teste de 5K na 6. O volume semanal de corrida vem do contrato gerado no KpiMaster, não deste repo.
 - **Super Meta + recalibragem contínua de 1RM** — cada treino (exceto deload/teste) captura uma super meta no exercício foco; o que é levantado estima o 1RM e recalibra o valor armazenado para cima de forma contínua e amortecida (Força integral ×1,0; Potência/Hipertrofia ×0,5). Gate de readiness desativa a super meta em dia ruim (HRV baixo / sono <6h).
 - **Comentário do treino** — campo livre por sessão (disponível mesmo em dia sem PR), visível no histórico.
 - **Compensação visível** — quando o ganho é amortecido, o app mostra "estimou X · creditado Y · amortecido Z" no modal de PR e no histórico.

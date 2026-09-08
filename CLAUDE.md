@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PWA de treino de força com periodização DUP de 24 semanas, incluindo corrida e acessórios. Aplicação 100% client-side, sem dependências npm — um único arquivo HTML (~2630 linhas) com CSS e JS embutidos, hospedado no GitHub Pages. **Offline-first**: localStorage é cache + buffer; jsonbin (via Worker) é a fonte da verdade remota.
+PWA de treino de força que executa o **bloco de 6 semanas** da DES-694 (`B1-2026-09-07`), com corrida e acessórios. Aplicação 100% client-side, sem dependências npm — um único arquivo HTML (~2630 linhas) com CSS e JS embutidos, hospedado no GitHub Pages. **Offline-first**: localStorage é cache + buffer; jsonbin (via Worker) é a fonte da verdade remota.
 
 - **Repo**: `https://github.com/Raid112/treino-app.git`
 - **Deploy**: GitHub Pages (usa `.nojekyll`), branch `master`, em `https://raid112.github.io/treino-app/`
@@ -36,8 +36,9 @@ Não há build/lint/package.json. Há testes de lógica em `tests/` e um roteiro
 - `#settings` — 1RM (Squat/Bench/Deadlift), semana, Garmin, Sync, reset/export
 
 ### Constantes de dados
-- `WEEK_DATA` — Periodização semanas 1-24. Blocos: Acumulação → Transmutação I → Transmutação II → Realização. Temas: Hipertrofia / Forca / Potencia / Deload / Tecnica / Taper Forca / 1RM Test / Recovery. Cada semana: `p` (primário) e `sec` (secundário) com `{s, r, pct}`.
-- `RUNNING_DATA` — Plano de corrida por semana (longRun/media/quality), meta total, notas.
+- `BLOCO_DES694` — Espelho de `loops/bloco/bloco.json` no KpiMaster (o **Esqueleto**). Estável pelas 6 semanas: `fcCap` 150, Z2, sem qualidade, piso 20 min/sessão, teto 120 min/semana, força RPE 8 (9 só com gate verde), `semSingles`.
+- `WEEK_DATA` — Força das semanas 1-6. Temas reusam chaves de `EXECUTION_PROFILES` (`Forca` nas semanas base, `Deload` na 4 e na 6) **de propósito**: tema novo quebra `EXECUTION_PROFILES[w.theme].label` e faz `superMetaMode()` devolver null em silêncio. Cada semana: `p` (primário) e `sec` (secundário) com `{s, r, pct}` — RPE governa o teto, o `pct` dá a carga de partida e a recalibragem corrige pelo que foi levantado.
+- `RUNNING_DATA` **não existe mais.** O volume semanal de corrida é do **Contrato** (`loops/corrida/plano.md`), gerado toda segunda por `contrato_semanal.py`. O app espelha só o guardrail por sessão (`runTargetFor`/`runLabel`) e registra o executado — dois donos para o mesmo número é como ele fica errado.
 - `DAY_DEFS` — 6 dias. Tipos: `strength` (2 exercícios), `combined` (1 strength + corrida), `running`, `accessories`. Cada lift tem 1 dia como `primary` e pode aparecer como `secondary` em outro (ex: deadlift é secondary no D2, primary no D5).
 - `ACCESSORIES`, `EXECUTION_PROFILES` (perfil de execução por tema: tempo concêntrico/excêntrico, RPE, descanso).
 - `LIFT_NAMES`, `ZONE_INFO`, `CADENCE_TARGETS`.
@@ -98,6 +99,7 @@ PWA chama um Cloudflare Worker (`garmin-cf-probe`, repo separado em `../garmin-c
 
 ## Testing
 
+- `tests/bloco1.test.js` — Gate do bloco: valida que `WEEK_DATA`/`DAY_DEFS` obedecem o Esqueleto (sem singles, 2-3 dias de força, 3 de corrida, `fcCap` 150, nenhum tema órfão), que `generateWorkout` roda nas 36 combinações semana×dia e que a migração de `currentWeek` do plano antigo de 24 semanas não crasha a home. **Rodar depois de tocar em `WEEK_DATA`, `DAY_DEFS` ou `BLOCO_DES694`.**
 - `tests/recalibragem.test.js` — Suite node da lógica pura. Extrai o objeto `Workout` REAL do `index.html` (regex + eval) e roda casos de `estimate1RM`/`recalibrate`/`superMetaMode`/`initSuperMeta`. Rodar antes de tocar na recalibragem.
 - `TESTING.md` — Roteiro de testes (camadas: lógica node / UI manual / sync E2E no Android), matriz de casos, log de execução e pendências.
 
@@ -109,3 +111,18 @@ PWA chama um Cloudflare Worker (`garmin-cf-probe`, repo separado em `../garmin-c
 - Tela de workout preserva estado em `in_progress` (incl. super meta e comentário) para recuperar após reload.
 - **Todo error path renderiza placeholder visível com a causa — nunca falha mudo** (é PWA mobile com cache).
 - Commits pequenos e temáticos, mensagens em PT. Testar no localhost antes de pushar.
+
+## Relação com o KpiMaster (DES-694)
+
+Este app é a **superfície de execução** do bloco, não o dono do plano.
+
+| Camada | Dono | Onde vive | Cadência |
+|---|---|---|---|
+| Esqueleto | Caio | `loops/bloco/bloco.json` (espelhado em `BLOCO_DES694`) | 6 semanas |
+| Contrato (corrida) | `contrato_semanal.py` | `loops/corrida/plano.md` | toda segunda |
+| Contrato (força) | **este app** | `WEEK_DATA` | estático no bloco |
+| Ledger | append-only | `loops/ledger/intervencoes.jsonl` | por evento |
+
+Força é estática aqui porque o gerador não escreve em `loops/forca/` até a Fase 4 — não há dono concorrente. Corrida é o contrário: qualquer minuto de volume semanal hardcodado aqui fica velho na segunda seguinte.
+
+> **Read-back do contrato ainda não existe.** Precisaria de uma rota `/contrato` no Worker `garmin-cf-probe`, cujo repo não está na VM. Até lá o app mostra o guardrail por sessão e o volume da semana se lê no `plano.md`.

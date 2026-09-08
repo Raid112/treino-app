@@ -127,3 +127,18 @@ Todos os caminhos testados passaram. Reset offline NÃO falha mudo (fallback "Re
 
 ### Pendência que precisa de decisão do usuário
 - **CSV não exporta a compensação.** A spec corrigida diz "compensação no treino para ser ciente"; o CSV exporta o treino mas só tem `sm_est_1rm`. Decidir: adicionar `sm_recalib_applied` + `sm_recalib_factor` ao `generateCSV`, ou deixar a compensação só no app (histórico/modal).
+
+---
+
+## Bloco 1 — DES-694 (08/09/2026)
+
+```bash
+node tests/bloco1.test.js      # gate do bloco (15 checks)
+node tests/recalibragem.test.js # matematica de 1RM (27 checks)
+```
+
+O primeiro testa os **dados** do plano contra o Esqueleto; o segundo testa a **matemática** de 1RM. Rodar os dois antes de qualquer push — o app vai pro celular via GitHub Pages e um `WEEK_DATA[week]` undefined trava a home sem recurso offline.
+
+### Caso que só aparece no celular
+
+`Sync.applyRemote()` escreve o config direto no `localStorage`. Um jsonbin com `currentWeek: 14` (plano antigo de 24 semanas) reintroduz a semana inválida **depois** de qualquer migração de boot. Por isso o clamp vive em `Storage.getConfig()`, no caminho de leitura, e a home mostra de onde a semana foi realinhada. Coberto por `bloco1.test.js`, mas vale confirmar no aparelho no primeiro boot pós-deploy.
