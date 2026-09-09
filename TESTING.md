@@ -133,7 +133,7 @@ Todos os caminhos testados passaram. Reset offline NÃO falha mudo (fallback "Re
 ## Bloco 1 — DES-694 (08/09/2026)
 
 ```bash
-node tests/bloco1.test.js      # gate do bloco (15 checks)
+node tests/bloco1.test.js      # gate do bloco + dieta (inclui quantidades)
 node tests/recalibragem.test.js # matematica de 1RM (27 checks)
 ```
 
@@ -147,7 +147,7 @@ O primeiro testa os **dados** do plano contra o Esqueleto; o segundo testa a **m
 
 ## Plano de dieta por semana — 08/09/2026
 
-A home mostra cinco blocos alimentares. W1/W2 usam diet break de 2650 kcal; W3–W6 usam `TDEE observado - 550`. Sem TDEE salvo, a UI mantém a fórmula e não exibe uma estimativa inventada. O TDEE pode ser informado em Configurações; o campo é opcional e não altera histórico, 1RM ou passphrase.
+A home mostra o plano da semana ativa e a aba **Dieta** mostra os seis planos. W1/W2 usam diet break de 2650 kcal; W3–W6 usam `TDEE observado - 550`. As quantidades fixas aparecem explicitamente: 2 ovos + 200 g tomate + 500 ml leite; 400 g mistura + 400 g vegetais; 2 copos com 30 g de leite em pó por copo; pós com referência de 30 g whey. Pré/pós deixam os alimentos à escolha, mas fixam kcal e metas P/C. A transição W2→W3 aparece em vermelho. Sem TDEE salvo, a UI mantém a fórmula e não inventa uma estimativa. O TDEE pode ser informado em Configurações; o campo é opcional e não altera histórico, 1RM ou passphrase.
 
 ```bash
 node tests/bloco1.test.js       # inclui somas, fases, fórmula e resolução de kcal

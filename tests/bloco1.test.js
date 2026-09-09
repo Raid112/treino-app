@@ -66,6 +66,22 @@ ok(['cafe_tarde','pre_treino','pos_treino'].every(id => {
   const meal = breakDiet.meals.find(item => item.id === id);
   return meal && meal.calories > 0 && meal.protein_g > 0 && meal.carbs_g > 0;
 }), 'cafe da tarde/pre/pos tem kcal, proteina e carbo');
+const meal = id => breakDiet.meals.find(item => item.id === id);
+ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite',
+   'cafe da manha informa ovos, tomate e 500 ml de leite');
+ok(meal('almoco').quantity === '400 g de mistura + 400 g de vegetais'
+   && /meta da refeição/.test(meal('almoco').uncertainty),
+   'almoco informa as duas porcoes e nao finge medir a proteina da mistura');
+ok(/2 copos/.test(meal('cafe_tarde').quantity) && /30 g/.test(meal('cafe_tarde').quantity)
+   && /60 g\/dia/.test(meal('cafe_tarde').quantity),
+   'cafe da tarde informa 2 copos, 30 g por copo e 60 g/dia');
+ok(/alimentos à sua escolha/.test(meal('pre_treino').quantity)
+   && /30 g de whey/.test(meal('pos_treino').quantity),
+   'pre e pos deixam escolha de alimentos, mas fixam os alvos e 30 g de whey');
+ok(DIET_PLAN.weekChanges[3].kind === 'change'
+   && /Mudança W2/.test(DIET_PLAN.weekChanges[3].text)
+   && html.includes('diet-plan-change'),
+   'mudanca W2-W3 tem destaque vermelho');
 const cutFormula = getDietWeekPlan(3, {});
 ok(cutFormula.phase === 'cut' && cutFormula.totalCalories === null
     && /TDEE observado/.test(cutFormula.calorieRule),

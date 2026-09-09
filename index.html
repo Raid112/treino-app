@@ -208,6 +208,11 @@ body > * { position: relative; z-index: 1; }
 .diet-plan-meal-target { font-size:11px; color:var(--neon-amber); text-align:right; white-space:nowrap; }
 .diet-plan-meal-macros { grid-column:1 / -1; font-size:10px; color:var(--text-muted); }
 .diet-plan-warning { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,206,84,0.18); font-size:11px; color:var(--neon-amber); line-height:1.45; }
+.diet-plan-change { margin-top:10px; padding:9px 10px; border:1px solid rgba(255,82,112,0.6); border-radius:var(--radius-sm); background:rgba(255,82,112,0.11); color:#ff5270; font-size:11px; font-weight:800; line-height:1.45; text-transform:uppercase; }
+.diet-plan-no-change { margin-top:10px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; }
+.diet-plan-quantity { grid-column:1 / -1; font-size:11px; color:var(--text-primary); line-height:1.4; }
+.diet-plan-quantity strong { color:var(--neon-amber); }
+.diet-plan-uncertainty { grid-column:1 / -1; font-size:10px; color:var(--neon-amber); line-height:1.4; }
 .diet-screen-note { color:var(--text-muted); font-size:12px; line-height:1.5; margin:-14px 0 16px; }
 
 /* === SESSION CARDS === */
@@ -933,8 +938,16 @@ const WEEK_DATA = {
 // Plano alimentar operacional espelhado de loops/dieta/contrato.md. O contrato
 // continua sendo o dono da fase; este objeto só organiza a execução no app.
 const DIET_PLAN = {
-  version: '2026-09-08-v1',
+  version: '2026-09-08-v2',
   weeks: { 1:'break', 2:'break', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
+  weekChanges: {
+    1: { kind:'change', text:'Semana 1: início do break. Fica em 2650 kcal/dia para medir o TDEE.' },
+    2: { kind:'same', text:'Semana 2: sem mudança de dieta; mantém 2650 kcal/dia.' },
+    3: { kind:'change', text:'Mudança W2 → W3: sai do break e entra no cut. Kcal = TDEE observado − 550; carbo fecha o restante.' },
+    4: { kind:'same', text:'Semana 4: sem mudança de dieta; mantém os alvos do cut.' },
+    5: { kind:'same', text:'Semana 5: sem mudança de dieta; mantém os alvos do cut.' },
+    6: { kind:'same', text:'Semana 6: sem mudança de dieta; mantém os alvos do cut.' }
+  },
   phases: {
     break: {
       label: 'Diet break', totalCalories: 2650,
@@ -949,15 +962,21 @@ const DIET_PLAN = {
   },
   meals: [
     { id:'cafe_manha', label:'Café da manhã', share:0.19, calories:500, protein_g:35, carbs_g:45, carb_role:'carbo flexível',
-      note:'2 ovos + 200 g tomate-cereja; leite medido.' },
+      quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
+      note:'Leite em volume explícito; medir em copo graduado.' },
     { id:'almoco', label:'Almoço', share:0.30, calories:800, protein_g:70, carbs_g:90, carb_role:'carbo flexível',
-      note:'Manter 400 g mistura + 400 g vegetais; identificar a mistura.' },
+      quantity:'400 g de mistura + 400 g de vegetais',
+      uncertainty:'P ≥70 g é meta da refeição, não proteína medida: a mistura precisa ser identificada para confirmar a conta.',
+      note:'Pesar os 400 g da mistura e os 400 g de vegetais já prontos.' },
     { id:'cafe_tarde', label:'Café da tarde', share:0.13, calories:350, protein_g:25, carbs_g:45, carb_role:'carbo moderado',
-      note:'Leite em pó pesado; padrão 30 g por copo.' },
+      quantity:'2 copos; 30 g de leite em pó por copo = 60 g/dia',
+      note:'Não usar 60 g por copo sem intenção; pesar o pó e seguir o rótulo.' },
     { id:'pre_treino', label:'Pré-treino', share:0.13, calories:350, protein_g:20, carbs_g:60, carb_role:'carbo prioritário',
-      note:'Carbo prioritário; gordura e fibra moderadas.' },
+      quantity:'1 refeição: alimentos à sua escolha para fechar P ≥20 g e C ≈60 g',
+      note:'Você escolhe os alimentos; gordura e fibra moderadas.' },
     { id:'pos_treino', label:'Pós-treino', share:0.25, calories:650, protein_g:55, carbs_g:80, carb_role:'carbo prioritário',
-      note:'Proteína alta + carbo para fechar o dia.' }
+      quantity:'1 refeição: 30 g de whey + carbo à sua escolha para fechar P ≥55 g e C ≈80 g',
+      note:'Você escolhe o carbo; os 30 g de whey são a referência fixa.' }
   ]
 };
 
@@ -1889,18 +1908,25 @@ const App = {
     const cutWarning = plan.phase === 'cut' && plan.totalCalories == null
       ? '<div class="diet-plan-warning">Preencha o TDEE observado em Config para transformar a fórmula em kcal por refeição. Até lá, não inventa número.</div>'
       : '';
+    const weekChange = DIET_PLAN.weekChanges[week];
+    const changeHtml = weekChange
+      ? `<div class="${weekChange.kind === 'change' ? 'diet-plan-change' : 'diet-plan-no-change'}">${weekChange.text}</div>`
+      : '';
     const meals = plan.meals.map(meal => {
       const carbs = meal.carbs_g == null ? meal.carb_role : `C ~${meal.carbs_g} g · ${meal.carb_role}`;
+      const kcal = formatDietCalories(meal, plan.totalCalories);
       return `<div class="diet-plan-meal">
         <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
-        <div class="diet-plan-meal-target">${formatDietCalories(meal, plan.totalCalories)}</div>
+        <div class="diet-plan-meal-target">${kcal}</div>
+        <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity} · alvo ${kcal}</div>
         <div class="diet-plan-meal-macros">P ≥${meal.protein_g} g · ${carbs}</div>
+        ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
       </div>`;
     }).join('');
     el.innerHTML = `<section class="diet-plan-card">
       <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${week}</span><span class="diet-plan-kcal">${total}</span></div>
       <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
-      <div class="diet-plan-meals">${meals}</div>${cutWarning}
+      ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
     </section>`;
   },
 
