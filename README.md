@@ -11,6 +11,7 @@ PWA de treino de força que executa o bloco de 6 semanas da DES-694, com corrida
 - **Comentário do treino** — campo livre por sessão (disponível mesmo em dia sem PR), visível no histórico.
 - **Compensação visível** — quando o ganho é amortecido, o app mostra "estimou X · creditado Y · amortecido Z" no modal de PR e no histórico.
 - **Readiness Garmin** — tile na home com score 1-10 + métricas (sono, HRV, body battery, ACWR) via Cloudflare Worker.
+- **Plano alimentar por semana** — aba Dieta com cinco refeições, kcal e alvos de proteína/carboidrato; W1/W2 em break e W3–W6 por TDEE observado −550.
 - **Sync offline-first** — jsonbin (via Worker) é a fonte da verdade remota; localStorage é cache + buffer com fila. Funciona offline; sincroniza ao voltar online.
 - **PWA** — instalável, standalone, service worker com cache.
 

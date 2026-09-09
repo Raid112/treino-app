@@ -2,10 +2,10 @@
 
 > Doc vivo. Atualizado a cada rodada de teste. Não fechar a sessão enquanto houver caso ❌ ou ⏳.
 
-Última atualização: 2026-05-26
-App: `C:\Users\caioc\Apps\treino-app\index.html` (single-file, vanilla JS + localStorage)
-Servidor de teste: `python -m http.server 8123` → `http://localhost:8123/index.html`
-Ferramenta de teste: **Firefox DevTools MCP** (Chrome localhost foi negado nesta sessão).
+Última atualização: 2026-09-08
+App: `index.html` (single-file, vanilla JS + localStorage)
+Servidor de teste: `python3 -m http.server 8123` → `http://localhost:8123/index.html`
+Ferramenta de teste: Node.js para lógica; UI Android ainda pendente.
 
 ---
 
@@ -142,3 +142,18 @@ O primeiro testa os **dados** do plano contra o Esqueleto; o segundo testa a **m
 ### Caso que só aparece no celular
 
 `Sync.applyRemote()` escreve o config direto no `localStorage`. Um jsonbin com `currentWeek: 14` (plano antigo de 24 semanas) reintroduz a semana inválida **depois** de qualquer migração de boot. Por isso o clamp vive em `Storage.getConfig()`, no caminho de leitura, e a home mostra de onde a semana foi realinhada. Coberto por `bloco1.test.js`, mas vale confirmar no aparelho no primeiro boot pós-deploy.
+
+---
+
+## Plano de dieta por semana — 08/09/2026
+
+A home mostra cinco blocos alimentares. W1/W2 usam diet break de 2650 kcal; W3–W6 usam `TDEE observado - 550`. Sem TDEE salvo, a UI mantém a fórmula e não exibe uma estimativa inventada. O TDEE pode ser informado em Configurações; o campo é opcional e não altera histórico, 1RM ou passphrase.
+
+```bash
+node tests/bloco1.test.js       # inclui somas, fases, fórmula e resolução de kcal
+node tests/recalibragem.test.js # regressão da matemática de 1RM
+
+git diff --check
+```
+
+Critério E2E Android: **BLOCKED** enquanto nenhum dispositivo ADB estiver conectado. A validação Node da camada de dados passou; a inspeção visual no aparelho continua separada.

@@ -191,6 +191,25 @@ body > * { position: relative; z-index: 1; }
 }
 .week-summary-lifts strong { color: var(--text-primary); font-weight: 600; }
 
+/* === DIET PLAN === */
+.diet-plan-card {
+  background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(224,180,65,0.28); border-radius: var(--radius-lg);
+  padding: 16px; margin-bottom: 16px; box-shadow: var(--glass-shadow);
+}
+.diet-plan-header { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:6px; }
+.diet-plan-title { font:700 14px var(--font-display); letter-spacing:1px; color:var(--neon-amber); }
+.diet-plan-kcal { font:700 14px var(--font-display); color:var(--text-primary); text-align:right; }
+.diet-plan-meta { font-size:11px; color:var(--text-muted); margin-bottom:12px; line-height:1.5; }
+.diet-plan-meals { display:flex; flex-direction:column; gap:6px; }
+.diet-plan-meal { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; padding:8px 0; border-top:1px solid rgba(255,255,255,0.06); }
+.diet-plan-meal-name { font-size:12px; font-weight:600; color:var(--text-primary); }
+.diet-plan-meal-note { display:block; font-size:10px; color:var(--text-muted); margin-top:2px; }
+.diet-plan-meal-target { font-size:11px; color:var(--neon-amber); text-align:right; white-space:nowrap; }
+.diet-plan-meal-macros { grid-column:1 / -1; font-size:10px; color:var(--text-muted); }
+.diet-plan-warning { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,206,84,0.18); font-size:11px; color:var(--neon-amber); line-height:1.45; }
+.diet-screen-note { color:var(--text-muted); font-size:12px; line-height:1.5; margin:-14px 0 16px; }
+
 /* === SESSION CARDS === */
 .session-picker { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 .session-card {
@@ -775,12 +794,13 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
       <h1>TREINO UNIFICADO</h1>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
-        <span class="week-display">Semana <span id="current-week">1</span>/24</span>
+        <span class="week-display">Semana <span id="current-week">1</span>/6</span>
         <button class="week-btn" id="btn-next-week">&gt;</button>
       </div>
     </div>
     <div id="readiness-tile" class="readiness-tile" style="display:none;"></div>
     <div id="week-summary" class="week-summary"></div>
+    <div id="diet-plan"></div>
     <div id="session-picker" class="session-picker"></div>
     <div id="sync-status" class="sync-status"></div>
   </div>
@@ -789,6 +809,13 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="history" class="screen">
     <div class="history-header"><h2>Historico</h2></div>
     <div id="history-list" class="history-list"></div>
+  </div>
+
+  <!-- DIET -->
+  <div id="diet" class="screen">
+    <div class="history-header"><h2>Dieta por semana</h2></div>
+    <div class="diet-screen-note">Alvos operacionais para você escolher os alimentos. W1/W2 são break; W3–W6 viram kcal depois do TDEE observado.</div>
+    <div id="diet-list"></div>
   </div>
 
   <!-- WORKOUT -->
@@ -830,8 +857,11 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
       <div class="form-group"><label for="input-deadlift">Deadlift</label><input type="number" id="input-deadlift" step="2.5" value="180"></div>
       <div class="form-section-title">Corrida</div>
       <div class="form-group"><label for="input-5k-goal">Meta 5K Pace (min/km)</label><input type="text" id="input-5k-goal" placeholder="5:30" value=""></div>
+      <div class="form-section-title">Dieta</div>
+      <div class="form-group"><label for="input-diet-tdee">TDEE observado (kcal/dia, após o break)</label><input type="number" id="input-diet-tdee" min="1" step="50" placeholder="preencher após 20/09"></div>
       <div class="form-section-title">Programa</div>
       <div class="form-group"><label for="input-week">Semana do bloco (1-6)</label><input type="number" id="input-week" min="1" max="6" value="1"></div>
+      <button id="btn-new-cycle" class="btn btn-secondary">Iniciar novo ciclo (preserva histórico)</button>
       <div class="actions-bar">
         <button id="btn-back-settings" class="btn btn-secondary">Voltar</button>
         <button id="btn-save-settings" class="btn btn-primary">Salvar</button>
@@ -856,6 +886,10 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
     <button class="tab-item" data-screen="history">
       <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <span class="tab-label">Historico</span>
+    </button>
+    <button class="tab-item" data-screen="diet">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v8a3 3 0 006 0V3M9 3v8M6 7h6M15 3v18M15 3c3 0 4 2 4 5v2h-4"/></svg>
+      <span class="tab-label">Dieta</span>
     </button>
     <button class="tab-item" data-screen="settings">
       <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -896,6 +930,62 @@ const WEEK_DATA = {
        nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
 };
 
+// Plano alimentar operacional espelhado de loops/dieta/contrato.md. O contrato
+// continua sendo o dono da fase; este objeto só organiza a execução no app.
+const DIET_PLAN = {
+  version: '2026-09-08-v1',
+  weeks: { 1:'break', 2:'break', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
+  phases: {
+    break: {
+      label: 'Diet break', totalCalories: 2650,
+      calorieRule: '2650 kcal/dia', protein_g: 205, fat_g: 60,
+      note: '07/09–20/09: medir TDEE; proteína e gordura são pisos.'
+    },
+    cut: {
+      label: 'Cut', totalCalories: null,
+      calorieRule: 'TDEE observado − 550 kcal/dia', protein_g: 205, fat_g: 60,
+      note: 'A partir de 21/09: carboidrato fecha as calorias; alvo 0,5–0,8 kg/semana.'
+    }
+  },
+  meals: [
+    { id:'cafe_manha', label:'Café da manhã', share:0.19, calories:500, protein_g:35, carbs_g:45, carb_role:'carbo flexível',
+      note:'2 ovos + 200 g tomate-cereja; leite medido.' },
+    { id:'almoco', label:'Almoço', share:0.30, calories:800, protein_g:70, carbs_g:90, carb_role:'carbo flexível',
+      note:'Manter 400 g mistura + 400 g vegetais; identificar a mistura.' },
+    { id:'cafe_tarde', label:'Café da tarde', share:0.13, calories:350, protein_g:25, carbs_g:45, carb_role:'carbo moderado',
+      note:'Leite em pó pesado; padrão 30 g por copo.' },
+    { id:'pre_treino', label:'Pré-treino', share:0.13, calories:350, protein_g:20, carbs_g:60, carb_role:'carbo prioritário',
+      note:'Carbo prioritário; gordura e fibra moderadas.' },
+    { id:'pos_treino', label:'Pós-treino', share:0.25, calories:650, protein_g:55, carbs_g:80, carb_role:'carbo prioritário',
+      note:'Proteína alta + carbo para fechar o dia.' }
+  ]
+};
+
+function getDietWeekPlan(week, config = {}) {
+  const phaseName = DIET_PLAN.weeks[week] || 'break';
+  const phase = DIET_PLAN.phases[phaseName];
+  const tdee = Number(config.dietTdeeObserved);
+  const totalCalories = phaseName === 'break'
+    ? phase.totalCalories
+    : (Number.isFinite(tdee) && tdee > 550 ? Math.round(tdee - 550) : null);
+  const meals = DIET_PLAN.meals.map(meal => {
+    const calories = phaseName === 'break'
+      ? meal.calories
+      : (totalCalories == null ? null : Math.round(totalCalories * meal.share));
+    return { ...meal, calories, carbs_g: phaseName === 'break' ? meal.carbs_g : null };
+  });
+  return {
+    version: DIET_PLAN.version, week, phase: phaseName, label: phase.label,
+    totalCalories, calorieRule: phase.calorieRule, protein_g: phase.protein_g,
+    fat_g: phase.fat_g, note: phase.note, meals
+  };
+}
+
+function formatDietCalories(meal, totalCalories) {
+  if (meal.calories != null) return `${meal.calories} kcal`;
+  return `${Math.round(meal.share * 100)}% do alvo`;
+}
+
 // RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
 // O volume semanal de corrida e do contrato (loops/corrida/plano.md), gerado toda
 // segunda por contrato_semanal.py a partir de aderencia, ACWR, HRV e sono. Manter
@@ -912,6 +1002,26 @@ function runTargetFor(dayDef) {
   const c = BLOCO_DES694.corrida;
   return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.zona, fcCap: c.fcCap,
            tipo: dayDef.run || 'base' };
+}
+
+function runTargetLabel(target) {
+  if (!target || target.min == null || !Number.isFinite(Number(target.min))) {
+    return target && target.zone === '5K Teste' ? '5K · tempo livre' : 'Tempo registrado';
+  }
+  return `${Number(target.min)} min`;
+}
+
+function getRunTimerTargetSeconds(target) {
+  if (!target || target.min == null) return 0;
+  const min = Number(target && target.min);
+  return Number.isFinite(min) && min > 0 ? min * 60 : 0;
+}
+
+function resolveRunDuration(input, existing = null) {
+  const value = Number(input);
+  if (Number.isFinite(value) && value > 0) return value;
+  const previous = Number(existing);
+  return Number.isFinite(previous) && previous > 0 ? previous : null;
 }
 
 // 3 dias de barra + 3 de corrida + acessorios. O bloco pede forca 2-3x/semana;
@@ -970,6 +1080,12 @@ const CADENCE_TARGETS = {
 const WORKER_URL = 'https://garmin-cf-probe.caiocpagliarani.workers.dev';
 const READINESS_FETCH_MIN_INTERVAL_MS = 60 * 60 * 1000; // 1h throttle
 
+function createCycleId() {
+  const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() :
+    `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${BLOCO_DES694.id}:${uuid}`;
+}
+
 function getAccSets(week) {
   // Deload e semana de teste cortam serie de acessorio; o resto roda cheio.
   // Os cortes antigos (>=13, >=19, >=21) eram do plano de 24 semanas e nunca
@@ -996,7 +1112,9 @@ const Storage = {
     oneRM: { squat: 140, bench: 100, deadlift: 180 },
     oneRMHistory: [],
     currentWeek: 1,
-    goal5kPace: ''
+    cycleId: `${BLOCO_DES694.id}:initial`,
+    goal5kPace: '',
+    dietTdeeObserved: null
   },
 
   checkVersion() {
@@ -1009,17 +1127,44 @@ const Storage = {
 
   getConfig() {
     const data = localStorage.getItem(this.KEYS.CONFIG);
-    if (!data) { this.saveConfig(this.defaultConfig); return {...this.defaultConfig, oneRM:{...this.defaultConfig.oneRM}, oneRMHistory:[]}; }
+    if (!data) {
+      this.saveConfig(this.defaultConfig);
+      return {...this.defaultConfig, oneRM:{...this.defaultConfig.oneRM}, oneRMHistory:[]};
+    }
     const cfg = JSON.parse(data);
     if (!Array.isArray(cfg.oneRMHistory)) cfg.oneRMHistory = []; // migracao: config antigo sem historico
+    let changed = false;
+    const SEM = BLOCO_DES694.semanas;
+    const parsedWeek = parseInt(cfg.currentWeek, 10);
+    const hadCycleId = !!cfg.cycleId;
+    // Configs do app publicado antes do cycleId podem trazer currentWeek 1–6 e
+    // historico antigo. Abre um ciclo limpo na W1 sem apagar os registros legados.
+    if (!hadCycleId) {
+      cfg.legacyWeek = cfg.currentWeek;
+      cfg.weekMigratedFrom = cfg.currentWeek;
+      cfg.currentWeek = 1;
+      cfg.cycleId = createCycleId();
+      changed = true;
     // Migracao DES-694: o plano caiu de 24 para 6 semanas. Vive AQUI, no caminho de
     // leitura, e nao num passo de boot, porque Sync.applyRemote() escreve o config
-    // direto no localStorage — um jsonbin com currentWeek 14 voltaria a quebrar
-    // WEEK_DATA[week] depois de qualquer migracao unica.
-    const SEM = BLOCO_DES694.semanas;
-    if (!(cfg.currentWeek >= 1 && cfg.currentWeek <= SEM)) {
-      cfg.weekMigratedFrom = cfg.currentWeek;   // consumido pelo aviso da home
-      cfg.currentWeek = Math.min(SEM, Math.max(1, parseInt(cfg.currentWeek) || 1));
+    // direto no localStorage. Uma semana legada inicia um ciclo novo na semana 1;
+    // o valor antigo fica preservado para auditoria, sem apagar qualquer historico.
+    } else if (Number.isFinite(parsedWeek) && parsedWeek > SEM) {
+      cfg.legacyWeek = parsedWeek;
+      cfg.weekMigratedFrom = parsedWeek;   // consumido pelo aviso da home
+      cfg.legacyCycleId = cfg.cycleId;
+      cfg.currentWeek = 1;
+      cfg.cycleId = createCycleId();
+      changed = true;
+    } else if (!(parsedWeek >= 1 && parsedWeek <= SEM)) {
+      cfg.currentWeek = Math.min(SEM, Math.max(1, Number.isFinite(parsedWeek) ? parsedWeek : 1));
+      changed = true;
+    }
+    if (!cfg.cycleId) {
+      cfg.cycleId = createCycleId();
+      changed = true;
+    }
+    if (changed) {
       this.saveConfig(cfg);
     }
     return cfg;
@@ -1028,6 +1173,15 @@ const Storage = {
   saveConfig(config) { localStorage.setItem(this.KEYS.CONFIG, JSON.stringify(config)); },
   updateWeek(week) { const c = this.getConfig(); c.currentWeek = week; this.saveConfig(c); },
 
+  startNewCycle() {
+    const config = this.getConfig();
+    config.currentWeek = 1;
+    config.cycleId = createCycleId();
+    delete config.weekMigratedFrom;
+    this.saveConfig(config);
+    return config;
+  },
+
   getWorkouts() {
     const data = localStorage.getItem(this.KEYS.WORKOUTS);
     return data ? JSON.parse(data) : [];
@@ -1035,13 +1189,14 @@ const Storage = {
 
   saveWorkout(workout) {
     const workouts = this.getWorkouts();
-    const idx = workouts.findIndex(w => w.date === workout.date && w.dayNum === workout.dayNum && w.week === workout.week);
+    const idx = workouts.findIndex(w => w.date === workout.date && w.dayNum === workout.dayNum &&
+      w.week === workout.week && w.cycleId === workout.cycleId);
     if (idx >= 0) workouts[idx] = workout; else workouts.push(workout);
     localStorage.setItem(this.KEYS.WORKOUTS, JSON.stringify(workouts));
   },
 
-  getCompletedDaysForWeek(week) {
-    return this.getWorkouts().filter(w => w.week === week && w.completed).map(w => w.dayNum);
+  getCompletedDaysForWeek(week, cycleId = this.getConfig().cycleId) {
+    return this.getWorkouts().filter(w => w.week === week && w.cycleId === cycleId && w.completed).map(w => w.dayNum);
   },
 
   isDayCompleted(dayNum) {
@@ -1059,8 +1214,8 @@ const Storage = {
     }
   },
 
-  getCompletedRunMinutes(week) {
-    const workouts = this.getWorkouts().filter(w => w.week === week && w.completed);
+  getCompletedRunMinutes(week, cycleId = this.getConfig().cycleId) {
+    const workouts = this.getWorkouts().filter(w => w.week === week && w.cycleId === cycleId && w.completed);
     let total = 0;
     workouts.forEach(w => {
       if (w.running && w.running.actual && w.running.actual.duration) total += w.running.actual.duration;
@@ -1308,6 +1463,8 @@ const Workout = {
     const dayDef = DAY_DEFS[dayNum - 1];
     const week = config.currentWeek;
     const wd = WEEK_DATA[week];
+    const cycleId = config.cycleId || createCycleId();
+    if (!config.cycleId) config.cycleId = cycleId;
     const today = new Date().toISOString().split('T')[0];
 
     const base = {
@@ -1317,6 +1474,7 @@ const Workout = {
       dayType: dayDef.type,
       dayName: dayDef.name,
       week,
+      cycleId,
       block: wd.block,
       theme: wd.theme,
       exercises: [],
@@ -1409,7 +1567,7 @@ const Export = {
     const workouts = Storage.getWorkouts();
     if (!workouts.length) return null;
 
-    const headers = ['date','day_num','day_type','day_name','week','block','theme',
+    const headers = ['date','day_num','day_type','day_name','week','cycle_id','block','theme',
       'exercise','type','planned_sets','planned_reps','planned_pct','planned_weight',
       'actual_weight','sets_completed','sm_reps','sm_rpe','sm_est_1rm','run_target_min','run_zone','run_actual_min',
       'run_hr','run_pace','duration_min'];
@@ -1420,7 +1578,7 @@ const Export = {
       if (w.exercises && w.exercises.length) {
         w.exercises.forEach(ex => {
           const sm = (ex.actual.superMeta && !ex.actual.superMeta.blocked) ? ex.actual.superMeta : null;
-          rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
+          rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
             ex.name,ex.type,ex.planned.sets,ex.planned.reps,ex.planned.percentage,
             ex.planned.weight,ex.actual.weight||'',ex.actual.setsCompleted||0,
             sm?sm.reps:'',sm?(sm.rpe||''):'',sm?(sm.estimated1RM||''):'',
@@ -1428,7 +1586,7 @@ const Export = {
         });
       }
       if (w.running && w.running.actual) {
-        rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
+        rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
           'Corrida','running','','','','','','','','','',
           w.running.target.min,w.running.target.zone,
           w.running.actual.duration||'',w.running.actual.hr||'',
@@ -1436,7 +1594,7 @@ const Export = {
       }
       if (w.accessories) {
         w.accessories.forEach(a => {
-          rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.block,w.theme,
+          rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
             a.name,'accessory',a.sets,a.reps,'','',a.actualWeight||'',
             a.setsCompleted||0,'','','','','','','','',dur].join(','));
         });
@@ -1484,6 +1642,7 @@ const App = {
     } else {
       const last = Storage.getActiveScreen();
       if (last === 'history') this.showHistory();
+      else if (last === 'diet') this.showDiet();
       else if (last === 'settings') this.showSettings();
       else { this.showScreen('home'); this.updateHomeScreen(); }
     }
@@ -1554,11 +1713,13 @@ const App = {
     document.getElementById('btn-back-settings').addEventListener('click', () => { this.showScreen('home'); this.updateHomeScreen(); });
     document.getElementById('btn-prev-week').addEventListener('click', () => this.changeWeek(-1));
     document.getElementById('btn-next-week').addEventListener('click', () => this.changeWeek(1));
+    document.getElementById('btn-new-cycle').addEventListener('click', () => this.startNewCycle());
     document.querySelectorAll('.tab-item').forEach(item => {
       item.addEventListener('click', () => {
         const s = item.dataset.screen;
         if (s === 'home') { this.showScreen('home'); this.updateHomeScreen(); }
         else if (s === 'history') this.showHistory();
+        else if (s === 'diet') this.showDiet();
         else if (s === 'settings') this.showSettings();
       });
     });
@@ -1720,6 +1881,38 @@ const App = {
       <div class="readiness-footer">${ageLabel}</div>`;
   },
 
+  renderDietPlan(week, config, targetId = 'diet-plan') {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const plan = getDietWeekPlan(week, config);
+    const total = plan.totalCalories == null ? plan.calorieRule : `${plan.totalCalories} kcal/dia`;
+    const cutWarning = plan.phase === 'cut' && plan.totalCalories == null
+      ? '<div class="diet-plan-warning">Preencha o TDEE observado em Config para transformar a fórmula em kcal por refeição. Até lá, não inventa número.</div>'
+      : '';
+    const meals = plan.meals.map(meal => {
+      const carbs = meal.carbs_g == null ? meal.carb_role : `C ~${meal.carbs_g} g · ${meal.carb_role}`;
+      return `<div class="diet-plan-meal">
+        <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
+        <div class="diet-plan-meal-target">${formatDietCalories(meal, plan.totalCalories)}</div>
+        <div class="diet-plan-meal-macros">P ≥${meal.protein_g} g · ${carbs}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<section class="diet-plan-card">
+      <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${week}</span><span class="diet-plan-kcal">${total}</span></div>
+      <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
+      <div class="diet-plan-meals">${meals}</div>${cutWarning}
+    </section>`;
+  },
+
+  showDiet() {
+    const config = Storage.getConfig();
+    const list = document.getElementById('diet-list');
+    if (!list) return;
+    list.innerHTML = Object.keys(DIET_PLAN.weeks).map(week => `<div id="diet-week-${week}"></div>`).join('');
+    Object.keys(DIET_PLAN.weeks).forEach(week => this.renderDietPlan(Number(week), config, `diet-week-${week}`));
+    this.showScreen('diet');
+  },
+
   updateHomeScreen() {
     const config = Storage.getConfig();
     const week = config.currentWeek;
@@ -1766,6 +1959,8 @@ const App = {
         <span><strong>${config.oneRM.bench}</strong> BNC</span>
         <span><strong>${config.oneRM.deadlift}</strong> DL</span>
       </div>`;
+
+    this.renderDietPlan(week, config);
 
     // Session cards
     const picker = document.getElementById('session-picker');
@@ -2093,7 +2288,7 @@ const App = {
         <span style="font-size:10px;font-family:var(--font-display);letter-spacing:1.5px;color:${ctxColor};font-weight:600;">${ctxLabel}</span>
         ${zi ? `<span style="font-size:11px;color:var(--text-muted);">${zi.fc}</span>` : ''}
       </div>
-      <div class="running-card-target">${r.target.min} min</div>
+      <div class="running-card-target">${runTargetLabel(r.target)}</div>
       ${noteHtml}
       ${cad ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-bottom:8px;">
         <span style="color:var(--neon-amber);">♫</span> ${cad.label}
@@ -2115,11 +2310,11 @@ const App = {
       <div class="running-inputs">
         <div class="running-input-group">
           <label>Tempo (min)</label>
-          <input type="number" id="run-actual-time" value="${r.actual.duration || ''}">
+          <input type="number" id="run-actual-time" value="${r.actual.duration ?? ''}">
         </div>
         <div class="running-input-group">
           <label>FC Media</label>
-          <input type="number" id="run-actual-hr" value="${r.actual.hr || ''}">
+          <input type="number" id="run-actual-hr" value="${r.actual.hr ?? ''}">
         </div>
         <div class="running-input-group">
           <label>Pace</label>
@@ -2313,7 +2508,7 @@ const App = {
   startRunTimer() {
     const w = this.currentWorkout;
     if (!w || !w.running) return;
-    this.runTimerTarget = w.running.target.min * 60;
+    this.runTimerTarget = getRunTimerTargetSeconds(w.running.target);
     this.runTimerElapsed = 0;
     const startBtn = document.getElementById('btn-start-run');
     const display = document.getElementById('run-timer-display');
@@ -2323,7 +2518,7 @@ const App = {
     this.runTimerInterval = setInterval(() => {
       this.runTimerElapsed++;
       this.updateRunTimerDisplay();
-      if (this.runTimerElapsed === this.runTimerTarget) {
+      if (this.runTimerTarget > 0 && this.runTimerElapsed === this.runTimerTarget) {
         if (navigator.vibrate) navigator.vibrate([200,100,200,100,200]);
         const circle = document.getElementById('run-timer-circle');
         if (circle) circle.classList.add('target-reached');
@@ -2342,14 +2537,16 @@ const App = {
       const p = Math.min(this.runTimerElapsed / this.runTimerTarget, 1);
       circle.style.setProperty('--progress', p);
     }
-    if (this.runTimerElapsed >= this.runTimerTarget && document.getElementById('run-timer-value')) {
+    if (this.runTimerTarget > 0 && this.runTimerElapsed >= this.runTimerTarget && document.getElementById('run-timer-value')) {
       document.getElementById('run-timer-value').style.color = 'var(--neon-green)';
     }
   },
 
   completeRun() {
     if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
-    const durMin = Math.round(this.runTimerElapsed / 60);
+    const entered = resolveRunDuration(document.getElementById('run-actual-time')?.value, null);
+    const elapsed = this.runTimerElapsed > 0 ? Math.round(this.runTimerElapsed / 60) : null;
+    const durMin = entered ?? elapsed;
     this.currentWorkout.running.actual.completed = true;
     this.currentWorkout.running.actual.duration = durMin;
     const timeInput = document.getElementById('run-actual-time');
@@ -2412,11 +2609,13 @@ const App = {
       if (sm && !sm.blocked) ex.actual.weight = sm.weight;
     });
     if (w.running) {
-      w.running.actual.duration = parseFloat(document.getElementById('run-actual-time')?.value) || w.running.actual.duration;
+      w.running.actual.duration = resolveRunDuration(document.getElementById('run-actual-time')?.value, w.running.actual.duration);
       w.running.actual.hr = parseFloat(document.getElementById('run-actual-hr')?.value) || null;
       w.running.actual.pace = document.getElementById('run-actual-pace')?.value || null;
       // Finalizar = feito: corrida sem tempo informado assume o alvo.
-      if (!Number.isFinite(w.running.actual.duration)) w.running.actual.duration = w.running.target.min;
+      if (!Number.isFinite(w.running.actual.duration) && Number.isFinite(w.running.target.min)) {
+        w.running.actual.duration = w.running.target.min;
+      }
       w.running.actual.completed = true;
     }
 
@@ -2498,13 +2697,14 @@ const App = {
     if (w.running) {
       const t = w.running.target, ra = w.running.actual;
       const dur = ra.duration || 0;
-      const ok = dur >= t.min;
+      const hasTarget = t.min != null && Number.isFinite(Number(t.min));
+      const ok = hasTarget ? dur >= t.min : Number.isFinite(Number(ra.duration));
       runRow = `
         <div class="ws-row">
           <div class="ws-name">Corrida · ${t.zone}</div>
           <div class="ws-cmp">
-            <span class="ws-plan">plano ${t.min}min</span>
-            <span class="ws-real ${ok ? 'ok' : 'low'}">${dur}min${ra.hr ? ' · FC ' + ra.hr : ''} ${ok ? '✓' : '⚠'}</span>
+            <span class="ws-plan">${hasTarget ? `plano ${t.min}min` : 'tempo livre'}</span>
+            <span class="ws-real ${ok ? 'ok' : 'low'}">${Number.isFinite(Number(ra.duration)) ? `${dur}min` : 'tempo não informado'}${ra.hr ? ' · FC ' + ra.hr : ''} ${ok ? '✓' : '⚠'}</span>
           </div>
         </div>`;
     }
@@ -2607,6 +2807,8 @@ const App = {
     document.getElementById('input-deadlift').value = config.oneRM.deadlift;
     document.getElementById('input-week').value = config.currentWeek;
     document.getElementById('input-5k-goal').value = config.goal5kPace || '';
+    const tdeeInput = document.getElementById('input-diet-tdee');
+    if (tdeeInput) tdeeInput.value = Number.isFinite(Number(config.dietTdeeObserved)) ? config.dietTdeeObserved : '';
     const sss = document.getElementById('sync-status-settings');
     if (sss) { const ss = this.syncStatusInfo(); sss.innerHTML = `<span class="sync-dot ${ss.cls}"></span> ${ss.text}`; }
     this.showScreen('settings');
@@ -2630,8 +2832,20 @@ const App = {
     config.currentWeek = Math.max(1, Math.min(BLOCO_DES694.semanas, isNaN(wIn) ? 1 : wIn));
     delete config.weekMigratedFrom;   // escolha explicita do Caio encerra o aviso
     config.goal5kPace = document.getElementById('input-5k-goal').value;
+    const tdeeValue = parseFloat(document.getElementById('input-diet-tdee')?.value);
+    if (Number.isFinite(tdeeValue) && tdeeValue > 550) config.dietTdeeObserved = Math.round(tdeeValue);
+    else delete config.dietTdeeObserved;
     Storage.saveConfig(config);
     Sync.commit().then(() => this.refreshSyncIndicator()); // PUT do estado no jsonbin (config mudou)
+    this.showScreen('home');
+    this.updateHomeScreen();
+  },
+
+  async startNewCycle() {
+    if (!await this.confirmModal('Iniciar um novo ciclo de 6 semanas? O histórico, 1RMs e pesos dos acessórios serão preservados.',
+      { okLabel: 'Iniciar ciclo', cancelLabel: 'Voltar' })) return;
+    Storage.startNewCycle();
+    Sync.commit().then(() => this.refreshSyncIndicator());
     this.showScreen('home');
     this.updateHomeScreen();
   },
