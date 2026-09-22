@@ -1338,7 +1338,17 @@ const Sync = {
     if (!this.configured()) { this.setStatus('local-only'); return false; }
     try {
       const r = await fetch(this.ENDPOINT, { headers: { 'Authorization': `Bearer ${Storage.getPassphrase()}` } });
-      if (!r.ok) { this.setStatus(`erro ${r.status} — cache local`); return false; }
+      if (!r.ok) {
+        if (r.status === 404) {
+          // D1 ainda sem documento: semear apenas com o cache local atual.
+          this.setDirty(true);
+          const pushed = await this.push();
+          if (pushed) this.setStatus('migrado do cache local');
+          return pushed;
+        }
+        this.setStatus(`erro ${r.status} — cache local`);
+        return false;
+      }
       const doc = await r.json();
       const applied = this.applyRemote(doc);
       this.setStatus(applied ? 'atualizado do servidor' : 'sincronizado');
