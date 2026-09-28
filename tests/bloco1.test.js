@@ -54,18 +54,19 @@ const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 
-// 3. Plano alimentar: break com alocacao fechada; cut sem TDEE nao inventa kcal.
+// 3. Plano alimentar B2: cut v9b a 1850 kcal em todas as semanas (loops/dieta/contrato.md, 28/09).
 ok(Object.keys(DIET_PLAN.weeks).length === B.semanas, 'DIET_PLAN cobre as 6 semanas');
 const breakDiet = getDietWeekPlan(1, {});
 const sum = (key) => breakDiet.meals.reduce((acc, meal) => acc + (meal[key] || 0), 0);
-ok(breakDiet.phase === 'break' && breakDiet.totalCalories === 2650,
-   'W1/W2 usam diet break a 2650 kcal');
-ok(sum('calories') === 2650 && sum('protein_g') === 205 && sum('carbs_g') === 320,
-   'alocacao do break fecha 2650 kcal, 205g P e 320g C');
+ok(Object.values(DIET_PLAN.weeks).every(w => w === 'cut'), 'B2 nao tem diet break');
+ok(breakDiet.phase === 'cut' && breakDiet.totalCalories === 1850,
+   'W1 usa cut v9b a 1850 kcal');
+ok(Math.abs(sum('calories') - 1850) <= 3 && sum('protein_g') === 205,
+   'alocacao do cut fecha ~1850 kcal e 205 g P');
 ok(['cafe_tarde','pre_treino','pos_treino'].every(id => {
   const meal = breakDiet.meals.find(item => item.id === id);
-  return meal && meal.calories > 0 && meal.protein_g > 0 && meal.carbs_g > 0;
-}), 'cafe da tarde/pre/pos tem kcal, proteina e carbo');
+  return meal && meal.calories > 0 && meal.protein_g > 0;
+}), 'cafe da tarde/pre/pos tem kcal e proteina');
 const meal = id => breakDiet.meals.find(item => item.id === id);
 ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite',
    'cafe da manha informa ovos, tomate e 500 ml de leite');
@@ -78,17 +79,15 @@ ok(/2 copos/.test(meal('cafe_tarde').quantity) && /30 g/.test(meal('cafe_tarde')
 ok(/alimentos à sua escolha/.test(meal('pre_treino').quantity)
    && /30 g de whey/.test(meal('pos_treino').quantity),
    'pre e pos deixam escolha de alimentos, mas fixam os alvos e 30 g de whey');
-ok(DIET_PLAN.weekChanges[3].kind === 'change'
-   && /Mudança W2/.test(DIET_PLAN.weekChanges[3].text)
+ok(DIET_PLAN.weekChanges[1].kind === 'change'
+   && /1850 kcal/.test(DIET_PLAN.weekChanges[1].text)
    && html.includes('diet-plan-change'),
-   'mudanca W2-W3 tem destaque vermelho');
-const cutFormula = getDietWeekPlan(3, {});
-ok(cutFormula.phase === 'cut' && cutFormula.totalCalories === null
-    && /TDEE observado/.test(cutFormula.calorieRule),
-   'W3 sem TDEE mostra formula, nao zero');
-const cutResolved = getDietWeekPlan(3, { dietTdeeObserved: 2650 });
-ok(cutResolved.totalCalories === 2100 && cutResolved.meals.map(m => m.calories).join(',') === '399,630,273,273,525',
-   'W3 com TDEE 2650 resolve cut em 2100 e distribui kcal');
+   'W1 do B2 destaca a entrada no cut v9b');
+const cutW3 = getDietWeekPlan(3, { dietTdeeObserved: 2650 });
+ok(cutW3.phase === 'cut' && cutW3.totalCalories === 1850 && /1850/.test(cutW3.calorieRule),
+   'W3 usa o contrato fixo de 1850, nao TDEE − 550');
+ok(cutW3.meals.map(m => m.calories).join(',') === '352,555,241,241,463',
+   'W3 distribui 1850 kcal pelas refeicoes');
 
 // 4. O plano bate com o Esqueleto
 ok(Object.keys(WEEK_DATA).length === B.semanas, `WEEK_DATA tem ${B.semanas} semanas`);

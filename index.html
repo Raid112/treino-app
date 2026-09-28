@@ -973,15 +973,16 @@ const WEEK_DATA = {
 // Plano alimentar operacional espelhado de loops/dieta/contrato.md. O contrato
 // continua sendo o dono da fase; este objeto só organiza a execução no app.
 const DIET_PLAN = {
-  version: '2026-09-08-v2',
-  weeks: { 1:'break', 2:'break', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
+  version: '2026-09-28-v9b',
+  // B2 (28/09/2026): contrato v9b de loops/dieta/contrato.md. O break do B1 acabou em 20/09.
+  weeks: { 1:'cut', 2:'cut', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
   weekChanges: {
-    1: { kind:'change', text:'Semana 1: início do break. Fica em 2650 kcal/dia para medir o TDEE.' },
-    2: { kind:'same', text:'Semana 2: sem mudança de dieta; mantém 2650 kcal/dia.' },
-    3: { kind:'change', text:'Mudança W2 → W3: sai do break e entra no cut. Kcal = TDEE observado − 550; carbo fecha o restante.' },
-    4: { kind:'same', text:'Semana 4: sem mudança de dieta; mantém os alvos do cut.' },
-    5: { kind:'same', text:'Semana 5: sem mudança de dieta; mantém os alvos do cut.' },
-    6: { kind:'same', text:'Semana 6: sem mudança de dieta; mantém os alvos do cut.' }
+    1: { kind:'change', text:'Semana 1 (B2): cut v9b, 1850 kcal/dia, P ≥205 g, G ≥60 g. Pré e pós-treino com porção fixa e pesada; refeição livre 1×/semana, moderada.' },
+    2: { kind:'same', text:'Semana 2: mantém 1850 kcal/dia. Se a média de peso não cair, desce um degrau da escada (1700 kcal + 1 Z2 de 30 min).' },
+    3: { kind:'same', text:'Semana 3: segue a escada do contrato conforme a média de peso.' },
+    4: { kind:'same', text:'Semana 4: segue a escada do contrato conforme a média de peso.' },
+    5: { kind:'same', text:'Semana 5: segue a escada do contrato conforme a média de peso.' },
+    6: { kind:'same', text:'Semana 6: segue a escada do contrato conforme a média de peso.' }
   },
   phases: {
     break: {
@@ -990,9 +991,9 @@ const DIET_PLAN = {
       note: '07/09–20/09: medir TDEE; proteína e gordura são pisos.'
     },
     cut: {
-      label: 'Cut', totalCalories: null,
-      calorieRule: 'TDEE observado − 550 kcal/dia', protein_g: 205, fat_g: 60,
-      note: 'A partir de 21/09: carboidrato fecha as calorias; alvo 0,5–0,8 kg/semana.'
+      label: 'Cut v9b', totalCalories: 1850,
+      calorieRule: '1850 kcal/dia (contrato v9b, 28/09)', protein_g: 205, fat_g: 60,
+      note: 'Carboidrato fecha as calorias; alvo 0,5–0,8 kg/semana. Escada em loops/dieta/contrato.md.'
     }
   },
   meals: [
@@ -1021,7 +1022,8 @@ function getDietWeekPlan(week, config = {}) {
   const tdee = Number(config.dietTdeeObserved);
   const totalCalories = phaseName === 'break'
     ? phase.totalCalories
-    : (Number.isFinite(tdee) && tdee > 550 ? Math.round(tdee - 550) : null);
+    : (phase.totalCalories != null ? phase.totalCalories
+       : (Number.isFinite(tdee) && tdee > 550 ? Math.round(tdee - 550) : null));
   const meals = DIET_PLAN.meals.map(meal => {
     const calories = phaseName === 'break'
       ? meal.calories
