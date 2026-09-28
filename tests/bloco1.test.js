@@ -146,6 +146,37 @@ ok(getRunTimerTargetSeconds(w6Run.running.target) === 0, 'timer do W6 5K nao mul
 ok(getRunTimerTargetSeconds({ min: 20 }) === 1200, 'timer normal converte minutos em segundos');
 ok(resolveRunDuration('34.5', null) === 34.5, 'duracao real digitada e preservada');
 
+// D2 (28/09/2026, divisao restaurada) carrega a unica sessao de qualidade da semana: Z3, FC <= 162.
+const w1d2 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2);
+ok(w1d2.running && w1d2.running.target.zone === 'Z3' && w1d2.running.target.fcCap === 162,
+   `W1 D2 = qualidade Z3/162 (got ${JSON.stringify(w1d2.running && w1d2.running.target)})`);
+ok(w1d2.exercises[0] && w1d2.exercises[0].lift === 'deadlift' && w1d2.exercises[0].type === 'secondary',
+   'D2 carrega deadlift secondary (D5 continua primary)');
+const w1d1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 1);
+ok(w1d1.running.target.zone === 'Z2' && w1d1.running.target.fcCap === B.corrida.fcCap,
+   'D1 continua Z2 (so D2 e qualidade)');
+ok(diasForca.length === 4 && B.forca.sessoes[1] === 4,
+   `divisao restaurada = 4 dias de barra (bloco amplo p/ ${JSON.stringify(B.forca.sessoes)})`);
+
+// Top set perto da falha: so semana 5, so no dia em que deadlift e primary (D5).
+const w5d5 = Workout.generateWorkout({ ...cfg, currentWeek: 5 }, 5);
+const w5DeadliftEx = w5d5.exercises.find(e => e.lift === 'deadlift');
+ok(w5DeadliftEx && w5DeadliftEx.actual.topSet
+    && w5DeadliftEx.actual.topSet.reps === 3 && w5DeadliftEx.actual.topSet.rpeTarget === 9,
+   'W5 D5 (deadlift primary) carrega top set 3 reps @RPE9 ' + JSON.stringify(w5DeadliftEx && w5DeadliftEx.actual.topSet));
+ok(w5DeadliftEx.actual.topSet.weight === Workout.calcWeight(cfg.oneRM.deadlift, 90),
+   'peso do top set = 90% do 1RM arredondado a 2.5kg');
+const w5d2 = Workout.generateWorkout({ ...cfg, currentWeek: 5 }, 2);
+const w5d2Deadlift = w5d2.exercises.find(e => e.lift === 'deadlift');
+ok(w5d2Deadlift && !w5d2Deadlift.actual.topSet, 'D2 (deadlift secondary) nao ganha top set, so o D5 primary');
+for (let wk = 1; wk <= B.semanas; wk++) {
+  if (wk === 5) continue;
+  const wkWorkout = Workout.generateWorkout({ ...cfg, currentWeek: wk }, 5);
+  const ex = wkWorkout.exercises.find(e => e.lift === 'deadlift');
+  if (ex && ex.actual.topSet) { console.error(`  top set vazou pra semana ${wk}`); erros++; }
+}
+ok(erros === 0, 'top set so aparece na semana 5 (rotacao documentada em WEEK_DATA p/ o proximo bloco)');
+
 // 5. Migracao de currentWeek — o caso que so aparece no celular dele.
 // Sync.applyRemote() escreve o config direto no localStorage, entao a migracao
 // TEM que estar no caminho de leitura: um jsonbin com semana 14 (plano antigo de

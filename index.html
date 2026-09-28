@@ -741,6 +741,9 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   border-radius: var(--radius-md); padding: 12px 14px; margin: 12px 0;
   font-size: 12px; color: var(--neon-magenta); font-weight: 500;
 }
+.top-set-card { border-color: rgba(217,83,59,0.35); background: rgba(217,83,59,0.05); }
+.top-set-card .sm-header { color: var(--neon-magenta); text-shadow: 0 0 8px rgba(217,83,59,0.3); }
+.ts-done { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin: 8px 0; }
 /* === RECALIB MODAL === */
 .rc-row {
   background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
@@ -911,10 +914,18 @@ const BLOCO_DES694 = {
   // Espelho de loops/bloco/bloco.json (KpiMaster). O Esqueleto e estavel pelas 6
   // semanas, entao pode viver estatico aqui. O Contrato semanal NAO vive aqui:
   // ele e gerado por loops/bin/contrato_semanal.py e muda toda segunda.
-  corrida: { fcCap: 150, zona: 'Z2', qualidadePermitida: false,
-             sessaoMinimaMin: 20, volumeTetoMin: 120, sessoesAlvo: 3,
-             teEsperado: [2.0, 2.9] },
-  forca:   { rpeAlvo: 8, rpeMaxGateVerde: 9, sessoes: [2, 3], semSingles: true },
+  // qualidade: parametros da UNICA sessao de qualidade/semana (D2). As demais
+  // sessoes seguem zona/fcCap normais. sessoes de forca subiu pra [2,4]: a
+  // divisao voltou a ter 4 dias de barra (Squat, Deadlift secundario no D2,
+  // Bench+Squat, Deadlift+Bench) a pedido do Caio — reabre o que 0fe7d1a tinha
+  // fechado por excesso. loops/bloco/bloco.json no KpiMaster tem que espelhar
+  // este mesmo ajuste (forca.sessoes e todo o bloco corrida), senao o
+  // contrato_semanal.py continua planejando pro Esqueleto antigo.
+  corrida: { fcCap: 150, zona: 'Z2', qualidadePermitida: true,
+             sessaoMinimaMin: 20, volumeTetoMin: 180, sessoesAlvo: 3,
+             teEsperado: [3.0, 4.0],
+             qualidade: { zona: 'Z3', fcCap: 162 } },
+  forca:   { rpeAlvo: 8, rpeMaxGateVerde: 9, sessoes: [2, 4], semSingles: true },
   testeSaida: { tipo: '5k_rua', semana: 6, condicoes: 'recovery.flag verde e sem dor' },
   alvos: { teste5kMax: '34:00', pesoMa7Max: 101.5, e1rmMin: 446 }
 };
@@ -924,12 +935,19 @@ const BLOCO_DES694 = {
 // `sem_singles: true` do bloco = nenhuma semana emite r:1.
 // Temas reusam chaves existentes de EXECUTION_PROFILES de proposito: tema novo
 // quebraria EXECUTION_PROFILES[w.theme].label e sumiria com a super meta.
+// Top set perto da falha (1x/semana, a partir da semana 5): 3 reps @RPE 9, sem
+// singles (o bloco proibe r:1 — por isso 3 reps, nunca 1). Rotaciona entre
+// terra/supino/agacho, no dia em que o lift e primary. Semana 6 e taper/teste
+// 5K (deload), entao a rotacao pula ela: so a semana 5 leva `topSet` aqui. O
+// PROXIMO bloco de 6 semanas deve continuar a rotacao a partir do supino
+// (depois agacho), nao reiniciar no terra.
 const WEEK_DATA = {
   1: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:75}, sec:{s:2,r:5,pct:70} },
   2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72} },
   3: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:80}, sec:{s:2,r:5,pct:75} },
   4: { theme:'Deload', block:'Deload',      bn:1, p:{s:2,r:5,pct:62}, sec:{s:2,r:5,pct:58}, deload:true },
-  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76} },
+  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76},
+       topSet:{ lift:'deadlift', reps:3, rpe:9, pct:90 } },
   6: { theme:'Deload', block:'Teste 5K',    bn:1, p:{s:2,r:5,pct:65}, sec:{s:2,r:5,pct:60},
        deload:true, specialRun:'5k_test',
        nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
@@ -1014,11 +1032,18 @@ function formatDietCalories(meal, totalCalories) {
 function runLabel(dayDef, wd) {
   if (wd.specialRun === '5k_test' && dayDef.run === 'longa') return '5K TESTE';
   const c = BLOCO_DES694.corrida;
+  if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
+    return `≥${c.sessaoMinimaMin}min ${c.qualidade.zona} · FC ≤ ${c.qualidade.fcCap}`;
+  }
   return `≥${c.sessaoMinimaMin}min ${c.zona} · FC ≤ ${c.fcCap}`;
 }
 
 function runTargetFor(dayDef) {
   const c = BLOCO_DES694.corrida;
+  if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
+    return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.qualidade.zona,
+             fcCap: c.qualidade.fcCap, tipo: dayDef.run };
+  }
   return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.zona, fcCap: c.fcCap,
            tipo: dayDef.run || 'base' };
 }
@@ -1043,22 +1068,24 @@ function resolveRunDuration(input, existing = null) {
   return Number.isFinite(previous) && previous > 0 ? previous : null;
 }
 
-// 3 dias de barra + 3 de corrida + acessorios. O bloco pede forca 2-3x/semana;
-// os 4 dias de barra do plano antigo estouravam o teto com o cut em curso.
-// Cada lift e primary uma vez. Deadlift so 1x/semana: custo de fadiga alto e o
-// bloco e de manutencao, nao de progressao.
+// 4 dias de barra + 3 de corrida + acessorios (divisao antiga, restaurada a
+// pedido do Caio em 28/09/2026 — a divisao de 08/09 (0fe7d1a) tinha cortado o
+// D2 pra 3 dias de barra por causa do teto do bloco; agora forca.sessoes
+// subiu pra [2,4] pra caber de novo). Deadlift aparece 2x (secondary no D2,
+// primary no D5); squat e bench tambem aparecem 2x cada. D2 carrega a UNICA
+// sessao de corrida de qualidade da semana (Z3 via runLabel/runTargetFor).
 const DAY_DEFS = [
-  { day:1, type:'combined',    name:'Squat + Corrida',    sugDay:'Seg', color:'purple',
+  { day:1, type:'combined',    name:'Squat + Corrida',        sugDay:'Seg', color:'purple',
     strength:{lift:'squat',    level:'primary'}, run:'base', runCtx:'muscu' },
-  { day:2, type:'running',     name:'Corrida Z2',         sugDay:'Ter', color:'green',
-    run:'base', runCtx:'solo' },
-  { day:3, type:'strength',    name:'Bench + Squat',      sugDay:'Qua', color:'cyan',
+  { day:2, type:'combined',    name:'Deadlift + Corrida Z3',  sugDay:'Ter', color:'purple',
+    strength:{lift:'deadlift', level:'secondary'}, run:'quality', runCtx:'muscu' },
+  { day:3, type:'strength',    name:'Bench + Squat',          sugDay:'Qua', color:'cyan',
     exercises:[{lift:'bench',level:'primary'},{lift:'squat',level:'secondary'}] },
-  { day:4, type:'running',     name:'Corrida Z2 (longa)', sugDay:'Qui', color:'green',
+  { day:4, type:'running',     name:'Long Run',               sugDay:'Qui', color:'green',
     run:'longa', runCtx:'solo' },
-  { day:5, type:'strength',    name:'Deadlift + Bench',   sugDay:'Sex', color:'cyan',
+  { day:5, type:'strength',    name:'Deadlift + Bench',       sugDay:'Sex', color:'cyan',
     exercises:[{lift:'deadlift',level:'primary'},{lift:'bench',level:'secondary'}] },
-  { day:6, type:'accessories', name:'Acessorios',         sugDay:'Sab', color:'amber' }
+  { day:6, type:'accessories', name:'Acessorios',             sugDay:'Sab', color:'amber' }
 ];
 
 const ACCESSORIES = [
@@ -1087,6 +1114,7 @@ const LIFT_NAMES = { squat:'Squat', bench:'Bench Press', deadlift:'Deadlift' };
 
 const ZONE_INFO = {
   'Z2':      { fc:'<= 150 bpm', desc:'Base aerobica (fc_cap do bloco)' },
+  'Z3':      { fc:'<= 162 bpm', desc:'Qualidade (unica sessao/semana, D2)' },
   '5K Teste':{ fc:'Max effort', desc:'Teste de saida do bloco' }
 };
 
@@ -1474,6 +1502,20 @@ const Workout = {
     };
   },
 
+  // Top set perto da falha (WEEK_DATA[week].topSet), so no dia em que o lift e
+  // primary naquela semana. Nao mexe em completedSetIndices/focusSetIndex da
+  // super meta normal — vive num campo a parte e roda ANTES das series normais.
+  initTopSet(wd, ex, config) {
+    const t = wd.topSet;
+    if (!t || t.lift !== ex.lift || ex.level !== 'primary') return null;
+    return {
+      reps: t.reps, rpeTarget: t.rpe,
+      weight: this.calcWeight(config.oneRM[ex.lift], t.pct),
+      done: false,
+      note: '3 reps @RPE 9: parar se a técnica quebrar'
+    };
+  },
+
   calcBarBreakdown(totalWeight) {
     return [{name:'B20',weight:20},{name:'B10',weight:10}].map(bar => {
       if (totalWeight <= bar.weight) return {name:bar.name, perSide:null};
@@ -1532,7 +1574,8 @@ const Workout = {
           name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
           planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
           actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
-            superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null }
+            superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null,
+            topSet: this.initTopSet(wd, ex, config) }
         });
       });
     }
@@ -1545,7 +1588,8 @@ const Workout = {
         name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
         planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
         actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
-          superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null }
+          superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null,
+          topSet: this.initTopSet(wd, ex, config) }
       });
     }
 
@@ -2159,6 +2203,12 @@ const App = {
     const blockReason = sm ? this.superMetaBlocked() : null;
     if (sm) sm.blocked = !!blockReason;
     const showSuper = sm && !blockReason;
+    // Top set (1x/semana, perto da falha): mesmo gate de readiness da super meta —
+    // RPE 9 so com recovery.flag verde (bloco.forca.rpeMaxGateVerde).
+    const ts = ex.actual.topSet;
+    const tsBlockReason = ts ? this.superMetaBlocked() : null;
+    if (ts) ts.blocked = !!tsBlockReason;
+    const showTopSet = ts && !tsBlockReason;
     const bbHtml = Workout.formatBarBreakdown(ex.planned.weight);
     const div = document.createElement('div');
     div.className = 'exercise-card' + (showSuper ? ' has-super-meta' : '');
@@ -2179,6 +2229,7 @@ const App = {
         <span class="exercise-name">${ex.name}</span>
         <span class="exercise-type ${ex.type}">${ex.type === 'primary' ? 'FOCO' : 'SECUNDARIO'}</span>
       </div>
+      ${showTopSet ? this.topSetHtml(ts, index) : (ts && tsBlockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${tsBlockReason}) — top set desativado hoje. Segue so o treino normal.</div>` : '')}
       <div class="exercise-scheme bar-toggle" data-breakdown="bb-scheme-${index}">
         ${ex.planned.sets}x${ex.planned.reps} @ ${ex.planned.percentage}% = <strong>${ex.planned.weight}kg</strong>
         <span class="bar-toggle-icon" id="icon-scheme-${index}">▼</span>
@@ -2217,8 +2268,52 @@ const App = {
     } else {
       this.wireSuperMeta(div, index);
     }
+    if (showTopSet) this.wireTopSet(div, index);
     div.querySelectorAll('.set-btn').forEach(btn => {
       btn.addEventListener('click', e => this.toggleSet(e.target));
+    });
+  },
+
+  // HTML do top set (perto da falha, antes das series normais). Reaproveita as
+  // classes do card de super meta (.super-meta-card/.sm-*); so a borda muda.
+  topSetHtml(ts, index) {
+    return `
+      <div class="super-meta-card top-set-card" id="ts-card-${index}">
+        <div class="sm-header">🎯 TOP SET · antes das séries</div>
+        <div class="sm-mode">1X/SEMANA · PERTO DA FALHA</div>
+        <div class="sm-row">
+          <span class="sm-label">Peso</span>
+          <button class="sm-step" data-ts="${index}" data-delta="-2.5">−</button>
+          <input type="number" class="sm-input ts-weight-input" id="ts-weight-${index}" data-index="${index}" value="${ts.weight}" step="2.5">
+          <button class="sm-step" data-ts="${index}" data-delta="2.5">+2,5</button>
+        </div>
+        <div class="sm-locked">${ts.reps} reps @ RPE ${ts.rpeTarget} · sem singles</div>
+        <label class="ts-done">
+          <input type="checkbox" class="ts-done-checkbox" id="ts-done-${index}" data-index="${index}" ${ts.done ? 'checked' : ''}>
+          Fiz o top set
+        </label>
+        <div class="sm-cap">⛔ ${ts.note}</div>
+      </div>`;
+  },
+
+  wireTopSet(div, index) {
+    const weightInput = div.querySelector(`#ts-weight-${index}`);
+    const doneBox = div.querySelector(`#ts-done-${index}`);
+    div.querySelectorAll('.sm-step[data-ts]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ts = this.currentWorkout.exercises[index].actual.topSet;
+        ts.weight = Math.round((ts.weight + parseFloat(btn.dataset.delta)) * 2) / 2;
+        weightInput.value = ts.weight;
+        this.persistWorkout();
+      });
+    });
+    weightInput.addEventListener('change', e => {
+      this.currentWorkout.exercises[index].actual.topSet.weight = parseFloat(e.target.value);
+      this.persistWorkout();
+    });
+    doneBox.addEventListener('change', e => {
+      this.currentWorkout.exercises[index].actual.topSet.done = e.target.checked;
+      this.persistWorkout();
     });
   },
 
@@ -2638,6 +2733,20 @@ const App = {
       const i = parseInt(input.dataset.index);
       w.exercises[i].actual.weight = parseFloat(input.value);
     });
+    // Top set: captura do DOM por seguranca (mesmo padrao do .ex-weight acima),
+    // caso o evento change/toggle nao tenha disparado.
+    document.querySelectorAll('.ts-weight-input').forEach(input => {
+      const i = parseInt(input.dataset.index);
+      if (w.exercises[i] && w.exercises[i].actual.topSet) {
+        w.exercises[i].actual.topSet.weight = parseFloat(input.value);
+      }
+    });
+    document.querySelectorAll('.ts-done-checkbox').forEach(cb => {
+      const i = parseInt(cb.dataset.index);
+      if (w.exercises[i] && w.exercises[i].actual.topSet) {
+        w.exercises[i].actual.topSet.done = cb.checked;
+      }
+    });
     // Exercicio foco com super meta ativa: o peso real vem do painel (nao ha .ex-weight).
     // Se bloqueado (readiness), o peso ja foi capturado via .ex-weight acima.
     w.exercises.forEach(ex => {
@@ -2689,6 +2798,22 @@ const App = {
         // Compensacao registrada NO TREINO (sm.recalib) p/ o usuario ser ciente do amortecimento ao revisar
         sm.recalib = { from: entry.from, to: entry.to, delta: entry.delta, factor: entry.factor, estimated: est };
         recalibs.push({ entry, name: ex.name, theme: w.theme });
+      }
+    });
+
+    // Top set perto da falha: mesma mecanica de recalibragem (estimate1RM + recalibrate),
+    // so que com theme 'Forca' fixo (factor 1.0 — e um teste quase-maximo, nao ruidoso) e
+    // source proprio pra rastrear na oneRMHistory. Reusa o que ja existe, nao cria feature nova.
+    w.exercises.forEach(ex => {
+      const ts = ex.actual.topSet;
+      if (!ts || ts.blocked || !ts.done) return;
+      const est = Workout.estimate1RM(ts.weight, ts.reps);
+      ts.estimated1RM = est;
+      const entry = Workout.recalibrate(config, ex.lift, est, 'Forca',
+        { weight: ts.weight, reps: ts.reps, rpe: ts.rpeTarget }, { source: 'topset' });
+      if (entry) {
+        ts.recalib = { from: entry.from, to: entry.to, delta: entry.delta, factor: entry.factor, estimated: est };
+        recalibs.push({ entry, name: `${ex.name} (Top Set)`, theme: 'Forca' });
       }
     });
     if (recalibs.length) Storage.saveConfig(config); // persiste oneRM novo + oneRMHistory
@@ -2911,6 +3036,11 @@ const App = {
                 tail = `→ 1RM~${sm.estimated1RM} (sem ganho)`;
               }
               line += ` <span style="color:var(--neon-amber)">${base} ${tail}</span>`;
+            }
+            const ts = ex.actual.topSet;
+            if (ts && !ts.blocked && ts.done && ts.estimated1RM) {
+              const tsTail = ts.recalib ? `→ estimou ${ts.recalib.estimated}, aplicou ${ts.recalib.to}` : `→ 1RM~${ts.estimated1RM} (sem ganho)`;
+              line += ` <span style="color:var(--neon-magenta)">🎯 top set ${ts.reps} reps @ ${ts.weight}kg RPE${ts.rpeTarget} ${tsTail}</span>`;
             }
             return `<div class="history-card-exercise">${line}</div>`;
           }).join('');
