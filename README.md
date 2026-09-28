@@ -6,8 +6,8 @@ PWA de treino de força que executa o bloco de 6 semanas da DES-694, com corrida
 
 ## Features
 
-- **Bloco de 6 semanas (`B1-2026-09-07`)** — base em cut: força 4×/semana a RPE 8 (9 só com recuperação verde) e sem singles, corrida 3×/semana (1 de qualidade em Z3 FC ≤ 162, as demais Z2 FC ≤ 150), deload na 4, teste de 5K na 6. O volume semanal de corrida vem do contrato gerado no KpiMaster, não deste repo.
-- **Top set semanal perto da falha** — a partir da semana 5, 1x/semana, 3 reps @RPE 9 (sem singles) no lift primary do dia, rotação terra→supino→agacho. Reaproveita a mesma recalibragem de 1RM da super meta.
+- **Bloco de 6 semanas (`B2-2026-09-28`)** — reset do `B1-2026-09-07` (mudança grande de estratégia reinicia o bloco na semana 1): S1 hipertrofia (3×8/3×10 @68%/60%, sem top set), S2/S3/S5 força (3×5→3×4, 78%→82%) com top set nos 3 lifts, S4 deload, S6 taper + teste de 5K. Corrida 3×/semana (1 de qualidade em Z3 FC ≤ 162, as demais Z2 FC ≤ 150). O volume semanal de corrida vem do contrato gerado no KpiMaster, não deste repo. A transição de bloco é automática: `Storage.getConfig()` detecta o cycleId do bloco anterior e reinicia em W1 preservando 1RM e histórico.
+- **Top set nas semanas de força** — S2/S3/S5, 1x/semana por lift, 3 reps sem singles: o lift "da vez" (rotação terra→supino→agacho) a RPE 9 (~90% 1RM), os outros dois a RPE 8 (~85% 1RM), cada um no dia em que é primary. Reaproveita a mesma recalibragem de 1RM da super meta.
 - **Super Meta + recalibragem contínua de 1RM** — cada treino (exceto deload/teste) captura uma super meta no exercício foco; o que é levantado estima o 1RM e recalibra o valor armazenado para cima de forma contínua e amortecida (Força integral ×1,0; Potência/Hipertrofia ×0,5). Gate de readiness desativa a super meta em dia ruim (HRV baixo / sono <6h).
 - **Comentário do treino** — campo livre por sessão (disponível mesmo em dia sem PR), visível no histórico.
 - **Compensação visível** — quando o ganho é amortecido, o app mostra "estimou X · creditado Y · amortecido Z" no modal de PR e no histórico.
@@ -28,6 +28,7 @@ Sem build, sem npm. O service worker é cache-first — em dev, use `?v=N` na UR
 ## Testes
 
 ```bash
+node tests/bloco1.test.js         # dados do bloco ativo (WEEK_DATA/DAY_DEFS/top sets/transição de bloco)
 node tests/recalibragem.test.js   # lógica de 1RM (extrai o objeto Workout real do index.html)
 ```
 

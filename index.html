@@ -909,45 +909,62 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 // ========== DATA CONSTANTS ==========
 
 const BLOCO_DES694 = {
-  id: 'B1-2026-09-07', inicio: '2026-09-07', validoAte: '2026-10-18',
+  id: 'B2-2026-09-28', inicio: '2026-09-28', validoAte: '2026-11-08',
   semanas: 6, metaDominante: 'saude+cut',
+  // Bloco B2 (28/09/2026): reset de bloco a pedido do Caio — mudanca grande de
+  // estrategia (semana 1 volta a ser hipertrofia, nao forca) reinicia a contagem
+  // de 6 semanas em vez de continuar a numeracao do B1. Regra permanente dele:
+  // toda mudanca grande de estrategia = bloco novo comecando na semana 1.
   // Espelho de loops/bloco/bloco.json (KpiMaster). O Esqueleto e estavel pelas 6
   // semanas, entao pode viver estatico aqui. O Contrato semanal NAO vive aqui:
   // ele e gerado por loops/bin/contrato_semanal.py e muda toda segunda.
   // qualidade: parametros da UNICA sessao de qualidade/semana (D2). As demais
-  // sessoes seguem zona/fcCap normais. sessoes de forca subiu pra [2,4]: a
-  // divisao voltou a ter 4 dias de barra (Squat, Deadlift secundario no D2,
-  // Bench+Squat, Deadlift+Bench) a pedido do Caio — reabre o que 0fe7d1a tinha
-  // fechado por excesso. loops/bloco/bloco.json no KpiMaster tem que espelhar
-  // este mesmo ajuste (forca.sessoes e todo o bloco corrida), senao o
-  // contrato_semanal.py continua planejando pro Esqueleto antigo.
+  // sessoes seguem zona/fcCap normais. Corrida e forca.sessoes ficam iguais ao B1
+  // (4 dias de barra: Squat, Deadlift secundario no D2, Bench+Squat, Deadlift+Bench).
+  // loops/bloco/bloco.json no KpiMaster tem que espelhar este bloco (id, alvos,
+  // pesoMa7Max), senao o contrato_semanal.py continua planejando pro B1.
   corrida: { fcCap: 150, zona: 'Z2', qualidadePermitida: true,
              sessaoMinimaMin: 20, volumeTetoMin: 180, sessoesAlvo: 3,
              teEsperado: [3.0, 4.0],
              qualidade: { zona: 'Z3', fcCap: 162 } },
   forca:   { rpeAlvo: 8, rpeMaxGateVerde: 9, sessoes: [2, 4], semSingles: true },
   testeSaida: { tipo: '5k_rua', semana: 6, condicoes: 'recovery.flag verde e sem dor' },
-  alvos: { teste5kMax: '34:00', pesoMa7Max: 101.5, e1rmMin: 446 }
+  alvos: { teste5kMax: '34:00', pesoMa7Max: 106.5, e1rmMin: 446 }
 };
 
-// Forca do bloco 1. RPE 8 e o teto (9 so com gate verde) — os % sao a sugestao de
+// Forca do bloco 2. RPE 8 e o teto (9 so com gate verde) — os % sao a sugestao de
 // carga de partida, e a recalibragem corrige a partir do que foi levantado.
 // `sem_singles: true` do bloco = nenhuma semana emite r:1.
 // Temas reusam chaves existentes de EXECUTION_PROFILES de proposito: tema novo
 // quebraria EXECUTION_PROFILES[w.theme].label e sumiria com a super meta.
-// Top set perto da falha (1x/semana, a partir da semana 5): 3 reps @RPE 9, sem
-// singles (o bloco proibe r:1 — por isso 3 reps, nunca 1). Rotaciona entre
-// terra/supino/agacho, no dia em que o lift e primary. Semana 6 e taper/teste
-// 5K (deload), entao a rotacao pula ela: so a semana 5 leva `topSet` aqui. O
-// PROXIMO bloco de 6 semanas deve continuar a rotacao a partir do supino
-// (depois agacho), nao reiniciar no terra.
+// S1 volta a ser Hipertrofia (peso um pouco mais alto, sem top set) — e o motivo
+// do reset de bloco. S2/S3/S5 (semanas de forca) levam top set perto da falha nos
+// TRES lifts, nao so 1: o lift "da vez" (rotacao terra->supino->agacho, herdada do
+// B1) faz 3 reps @RPE9 (~90% 1RM) e os outros dois fazem 3 reps @RPE8 (~85% 1RM),
+// cada um no dia em que ELE e primary. `topSets` e um array (WEEK_DATA[w].topSets),
+// nao mais o campo singular `topSet` do B1 — ver Workout.initTopSet. Semana 4
+// (deload) e 6 (taper/teste 5K) nao levam top set nenhum.
 const WEEK_DATA = {
-  1: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:75}, sec:{s:2,r:5,pct:70} },
-  2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72} },
-  3: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:80}, sec:{s:2,r:5,pct:75} },
+  1: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:3,r:8,pct:68}, sec:{s:3,r:10,pct:60} },
+  2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72},
+       topSets:[
+         { lift:'deadlift', reps:3, rpe:9, pct:90 },   // da vez
+         { lift:'bench',    reps:3, rpe:8, pct:85 },
+         { lift:'squat',    reps:3, rpe:8, pct:85 }
+       ] },
+  3: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:80}, sec:{s:2,r:5,pct:75},
+       topSets:[
+         { lift:'bench',    reps:3, rpe:9, pct:90 },   // da vez
+         { lift:'deadlift', reps:3, rpe:8, pct:85 },
+         { lift:'squat',    reps:3, rpe:8, pct:85 }
+       ] },
   4: { theme:'Deload', block:'Deload',      bn:1, p:{s:2,r:5,pct:62}, sec:{s:2,r:5,pct:58}, deload:true },
   5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76},
-       topSet:{ lift:'deadlift', reps:3, rpe:9, pct:90 } },
+       topSets:[
+         { lift:'squat',    reps:3, rpe:9, pct:90 },   // da vez
+         { lift:'bench',    reps:3, rpe:8, pct:85 },
+         { lift:'deadlift', reps:3, rpe:8, pct:85 }
+       ] },
   6: { theme:'Deload', block:'Teste 5K',    bn:1, p:{s:2,r:5,pct:65}, sec:{s:2,r:5,pct:60},
        deload:true, specialRun:'5k_test',
        nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
@@ -1184,6 +1201,10 @@ const Storage = {
     const SEM = BLOCO_DES694.semanas;
     const parsedWeek = parseInt(cfg.currentWeek, 10);
     const hadCycleId = !!cfg.cycleId;
+    // cycleId tem o formato `${blocoId}:...` (ver createCycleId). Se o prefixo nao
+    // bate com o bloco ativo, o config e de um bloco anterior (ex.: B1 -> B2).
+    const cfgBlocoId = hadCycleId ? String(cfg.cycleId).split(':')[0] : null;
+    const blocoChanged = hadCycleId && cfgBlocoId !== BLOCO_DES694.id;
     // Configs do app publicado antes do cycleId podem trazer currentWeek 1–6 e
     // historico antigo. Abre um ciclo limpo na W1 sem apagar os registros legados.
     if (!hadCycleId) {
@@ -1191,6 +1212,20 @@ const Storage = {
       cfg.weekMigratedFrom = cfg.currentWeek;
       cfg.currentWeek = 1;
       cfg.cycleId = createCycleId();
+      changed = true;
+    // Transicao de bloco (28/09/2026, B1 -> B2 e futuros resets): bloco novo sempre
+    // comeca na semana 1, historico/oneRM/oneRMHistory do bloco anterior intactos.
+    // O cycleId novo e DERIVADO do antigo (nao createCycleId() aleatorio) porque
+    // Sync.boot() reaplica o snapshot remoto pre-migracao sempre que o local nao
+    // esta dirty (applyRemote escreve direto no localStorage) — sem determinismo,
+    // cada boot antes do 1o treino do bloco novo mintaria um cycleId diferente e
+    // orfanaria qualquer treino/in_progress ja salvo sob o cycleId anterior.
+    } else if (blocoChanged) {
+      cfg.legacyCycleId = cfg.cycleId;
+      cfg.blocoMigratedFrom = cfgBlocoId;
+      cfg.blocoMigratedFromWeek = cfg.currentWeek;
+      cfg.currentWeek = 1;
+      cfg.cycleId = `${BLOCO_DES694.id}:from:${cfg.cycleId}`;
       changed = true;
     // Migracao DES-694: o plano caiu de 24 para 6 semanas. Vive AQUI, no caminho de
     // leitura, e nao num passo de boot, porque Sync.applyRemote() escreve o config
@@ -1225,6 +1260,8 @@ const Storage = {
     config.currentWeek = 1;
     config.cycleId = createCycleId();
     delete config.weekMigratedFrom;
+    delete config.blocoMigratedFrom;
+    delete config.blocoMigratedFromWeek;
     this.saveConfig(config);
     return config;
   },
@@ -1502,17 +1539,19 @@ const Workout = {
     };
   },
 
-  // Top set perto da falha (WEEK_DATA[week].topSet), so no dia em que o lift e
-  // primary naquela semana. Nao mexe em completedSetIndices/focusSetIndex da
-  // super meta normal — vive num campo a parte e roda ANTES das series normais.
+  // Top set perto da falha (WEEK_DATA[week].topSets, array desde o B2 — B1 tinha
+  // so 1 lift/semana; B2 generalizou pros 3), so no dia em que o lift e primary
+  // naquela semana. Nao mexe em completedSetIndices/focusSetIndex da super meta
+  // normal — vive num campo a parte e roda ANTES das series normais.
   initTopSet(wd, ex, config) {
-    const t = wd.topSet;
-    if (!t || t.lift !== ex.lift || ex.level !== 'primary') return null;
+    if (!wd.topSets || ex.level !== 'primary') return null;
+    const t = wd.topSets.find(item => item.lift === ex.lift);
+    if (!t) return null;
     return {
       reps: t.reps, rpeTarget: t.rpe,
       weight: this.calcWeight(config.oneRM[ex.lift], t.pct),
       done: false,
-      note: '3 reps @RPE 9: parar se a técnica quebrar'
+      note: `${t.reps} reps @RPE ${t.rpe}: parar se a técnica quebrar`
     };
   },
 
@@ -2008,8 +2047,10 @@ const App = {
     const runTarget = BLOCO_DES694.corrida.volumeTetoMin;
     const pct5k = Math.min((runDone / runTarget) * 100, 100);
     const noteHtml = wd.nota ? `<div class="week-summary-note">${wd.nota}</div>` : '';
-    // Erro nunca fica mudo (CLAUDE.md): se o config veio de um plano antigo, diz.
-    const warnHtml = config.weekMigratedFrom
+    // Erro nunca fica mudo (CLAUDE.md): se o config veio de um plano/bloco antigo, diz.
+    const warnHtml = config.blocoMigratedFrom
+      ? `<div class="week-summary-warning">⚠ Bloco ${config.blocoMigratedFrom} encerrado (estava na semana ${config.blocoMigratedFromWeek}); novo bloco ${BLOCO_DES694.id} inicia na semana 1.</div>`
+      : config.weekMigratedFrom
       ? `<div class="week-summary-warning">⚠ Semana ${config.weekMigratedFrom} era do plano de 24 semanas; realinhada para ${week} (bloco ${BLOCO_DES694.id}).</div>`
       : (wd.deload ? `<div class="week-summary-warning">⚠ Semana de deload</div>` : '');
 
@@ -2992,6 +3033,8 @@ const App = {
     const wIn = parseInt(document.getElementById('input-week').value);
     config.currentWeek = Math.max(1, Math.min(BLOCO_DES694.semanas, isNaN(wIn) ? 1 : wIn));
     delete config.weekMigratedFrom;   // escolha explicita do Caio encerra o aviso
+    delete config.blocoMigratedFrom;
+    delete config.blocoMigratedFromWeek;
     config.goal5kPace = document.getElementById('input-5k-goal').value;
     const tdeeValue = parseFloat(document.getElementById('input-diet-tdee')?.value);
     if (Number.isFinite(tdeeValue) && tdeeValue > 550) config.dietTdeeObserved = Math.round(tdeeValue);

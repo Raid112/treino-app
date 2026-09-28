@@ -92,7 +92,7 @@ ok(cutResolved.totalCalories === 2100 && cutResolved.meals.map(m => m.calories).
 
 // 4. O plano bate com o Esqueleto
 ok(Object.keys(WEEK_DATA).length === B.semanas, `WEEK_DATA tem ${B.semanas} semanas`);
-ok(B.id === 'B1-2026-09-07', 'bloco = B1-2026-09-07');
+ok(B.id === 'B2-2026-09-28', 'bloco = B2-2026-09-28');
 
 const singles = Object.entries(WEEK_DATA)
   .filter(([, w]) => (w.p && w.p.r === 1) || (w.sec && w.sec.r === 1)).map(([k]) => k);
@@ -158,24 +158,52 @@ ok(w1d1.running.target.zone === 'Z2' && w1d1.running.target.fcCap === B.corrida.
 ok(diasForca.length === 4 && B.forca.sessoes[1] === 4,
    `divisao restaurada = 4 dias de barra (bloco amplo p/ ${JSON.stringify(B.forca.sessoes)})`);
 
-// Top set perto da falha: so semana 5, so no dia em que deadlift e primary (D5).
-const w5d5 = Workout.generateWorkout({ ...cfg, currentWeek: 5 }, 5);
-const w5DeadliftEx = w5d5.exercises.find(e => e.lift === 'deadlift');
-ok(w5DeadliftEx && w5DeadliftEx.actual.topSet
-    && w5DeadliftEx.actual.topSet.reps === 3 && w5DeadliftEx.actual.topSet.rpeTarget === 9,
-   'W5 D5 (deadlift primary) carrega top set 3 reps @RPE9 ' + JSON.stringify(w5DeadliftEx && w5DeadliftEx.actual.topSet));
-ok(w5DeadliftEx.actual.topSet.weight === Workout.calcWeight(cfg.oneRM.deadlift, 90),
-   'peso do top set = 90% do 1RM arredondado a 2.5kg');
-const w5d2 = Workout.generateWorkout({ ...cfg, currentWeek: 5 }, 2);
-const w5d2Deadlift = w5d2.exercises.find(e => e.lift === 'deadlift');
-ok(w5d2Deadlift && !w5d2Deadlift.actual.topSet, 'D2 (deadlift secondary) nao ganha top set, so o D5 primary');
-for (let wk = 1; wk <= B.semanas; wk++) {
-  if (wk === 5) continue;
-  const wkWorkout = Workout.generateWorkout({ ...cfg, currentWeek: wk }, 5);
-  const ex = wkWorkout.exercises.find(e => e.lift === 'deadlift');
-  if (ex && ex.actual.topSet) { console.error(`  top set vazou pra semana ${wk}`); erros++; }
+// Top set perto da falha, generalizado no B2 pros 3 lifts (S2 terra, S3 supino,
+// S5 agacho "da vez"): o lift da vez leva RPE9/90%, os outros dois RPE8/85%, cada
+// um no dia em que ELE e primary. WEEK_DATA[week].topSets agora e array (nao mais
+// o campo singular `topSet` do B1) — ver Workout.initTopSet.
+const daVez = { 2: 'deadlift', 3: 'bench', 5: 'squat' };
+const primaryDay = { squat: 1, bench: 3, deadlift: 5 };
+for (const wk of [2, 3, 5]) {
+  for (const lift of ['squat', 'bench', 'deadlift']) {
+    const day = primaryDay[lift];
+    const w = Workout.generateWorkout({ ...cfg, currentWeek: wk }, day);
+    const ex = w.exercises.find(e => e.lift === lift);
+    const expectedRpe = lift === daVez[wk] ? 9 : 8;
+    const expectedPct = lift === daVez[wk] ? 90 : 85;
+    ok(ex && ex.actual.topSet && ex.actual.topSet.reps === 3 && ex.actual.topSet.rpeTarget === expectedRpe,
+       `S${wk} D${day} (${lift} primary) top set RPE${expectedRpe} ` + JSON.stringify(ex && ex.actual.topSet));
+    ok(ex && ex.actual.topSet && ex.actual.topSet.weight === Workout.calcWeight(cfg.oneRM[lift], expectedPct),
+       `S${wk} ${lift}: peso do top set = ${expectedPct}% do 1RM`);
+  }
 }
-ok(erros === 0, 'top set so aparece na semana 5 (rotacao documentada em WEEK_DATA p/ o proximo bloco)');
+
+// Cada semana de forca leva exatamente 3 top sets (1 por lift, so no dia primary).
+for (const wk of [2, 3, 5]) {
+  let topSetCount = 0;
+  for (let d = 1; d <= DAY_DEFS.length; d++) {
+    const w = Workout.generateWorkout({ ...cfg, currentWeek: wk }, d);
+    w.exercises.forEach(e => { if (e.actual.topSet) topSetCount++; });
+  }
+  ok(topSetCount === 3, `S${wk} tem exatamente 3 top sets (1 por lift) — achou ${topSetCount}`);
+}
+
+// D2 (deadlift secondary) nunca ganha top set, mesmo em semana de top set.
+const w2d2 = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 2);
+const w2d2Deadlift = w2d2.exercises.find(e => e.lift === 'deadlift');
+ok(w2d2Deadlift && !w2d2Deadlift.actual.topSet, 'D2 (deadlift secondary) nao ganha top set mesmo em semana de top set');
+
+// Semanas sem top set: S1 (hipertrofia), S4 (deload), S6 (taper/teste 5K).
+for (const wk of [1, 4, 6]) {
+  let topSetCount = 0;
+  for (let d = 1; d <= DAY_DEFS.length; d++) {
+    const w = Workout.generateWorkout({ ...cfg, currentWeek: wk }, d);
+    w.exercises.forEach(e => { if (e.actual.topSet) topSetCount++; });
+  }
+  if (topSetCount !== 0) erros++;
+  ok(topSetCount === 0, `S${wk} nao tem top set (achou ${topSetCount})`);
+}
+ok(erros === 0, 'nenhum top set vazou pra semana errada');
 
 // 5. Migracao de currentWeek — o caso que so aparece no celular dele.
 // Sync.applyRemote() escreve o config direto no localStorage, entao a migracao
@@ -249,10 +277,54 @@ ok(JSON.stringify(Storage.getWorkouts()).length > 0 && Storage.getPassphrase() =
 
 _ls.clear();
 _ls.set('wu_config', JSON.stringify({ oneRM: { squat: 1, bench: 1, deadlift: 1 },
-                                      currentWeek: 3, cycleId: 'stable-cycle' }));
+                                      currentWeek: 3, cycleId: `${B.id}:stable` }));
 const intacto = Storage.getConfig();
-ok(intacto.currentWeek === 3 && intacto.weekMigratedFrom === undefined && intacto.cycleId === 'stable-cycle',
-   'semana valida passa intacta, sem aviso');
+ok(intacto.currentWeek === 3 && intacto.weekMigratedFrom === undefined && intacto.cycleId === `${B.id}:stable`,
+   'semana valida (cycleId do bloco ativo) passa intacta, sem aviso');
+_ls.clear();
+
+// Transicao de bloco (28/09/2026, B1 -> B2 e futuros resets): cycleId de um bloco
+// anterior tem que reiniciar em W1, com cycleId novo do bloco ativo, preservando
+// historico/oneRM/oneRMHistory/meta de 5K/TDEE do bloco anterior intactos.
+const oldBlocoCycleId = 'B1-2026-09-07:phone-uuid-1';
+const oldBlocoOneRMHistory = [{ lift:'squat', to:140, date:'2026-09-20' }];
+_ls.set('wu_config', JSON.stringify({
+  oneRM: { squat: 140, bench: 100, deadlift: 180 },
+  oneRMHistory: oldBlocoOneRMHistory,
+  currentWeek: 3, cycleId: oldBlocoCycleId, goal5kPace: '5:30', dietTdeeObserved: 2650
+}));
+_ls.set('wu_history', JSON.stringify([
+  { date:'2026-09-20', dayNum:1, week:3, cycleId: oldBlocoCycleId, completed:true }
+]));
+const b2cfg = Storage.getConfig();
+ok(b2cfg.currentWeek === 1, 'transicao B1->B2 reinicia na semana 1');
+ok(b2cfg.cycleId !== oldBlocoCycleId && b2cfg.cycleId.startsWith(`${B.id}:`),
+   `transicao gera cycleId novo do bloco ativo (${b2cfg.cycleId})`);
+ok(b2cfg.blocoMigratedFrom === 'B1-2026-09-07' && b2cfg.blocoMigratedFromWeek === 3,
+   'transicao registra o bloco e a semana de origem');
+ok(JSON.stringify(b2cfg.oneRM) === JSON.stringify({ squat:140, bench:100, deadlift:180 }),
+   'transicao de bloco preserva oneRM');
+ok(JSON.stringify(b2cfg.oneRMHistory) === JSON.stringify(oldBlocoOneRMHistory),
+   'transicao de bloco preserva oneRMHistory');
+ok(b2cfg.goal5kPace === '5:30' && b2cfg.dietTdeeObserved === 2650,
+   'transicao de bloco preserva meta de 5K e TDEE');
+ok(Storage.getWorkouts().length === 1 && Storage.getWorkouts()[0].cycleId === oldBlocoCycleId,
+   'historico do bloco anterior continua legivel (nao foi apagado)');
+ok(Storage.getCompletedDaysForWeek(3, oldBlocoCycleId).length === 1,
+   'completions do bloco anterior continuam consultaveis pelo cycleId antigo');
+
+// Idempotencia: Sync.boot() reaplica o snapshot remoto pre-migracao sempre que o
+// local nao esta dirty (applyRemote escreve direto no localStorage). Reaplicar o
+// MESMO config B1 cru tem que produzir o MESMO cycleId novo, senao um treino
+// salvo num boot anterior do B2 fica orfao no proximo boot.
+_ls.set('wu_config', JSON.stringify({
+  oneRM: { squat: 140, bench: 100, deadlift: 180 },
+  oneRMHistory: oldBlocoOneRMHistory,
+  currentWeek: 3, cycleId: oldBlocoCycleId, goal5kPace: '5:30', dietTdeeObserved: 2650
+}));
+const b2cfgAgain = Storage.getConfig();
+ok(b2cfgAgain.cycleId === b2cfg.cycleId,
+   'reaplicar o snapshot pre-migracao produz o mesmo cycleId (idempotente)');
 _ls.clear();
 
 console.log(`\n=== ${fail ? fail + ' FAIL' : 'TODOS VERDES'} ===`);
