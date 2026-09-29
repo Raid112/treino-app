@@ -207,6 +207,8 @@ body > * { position: relative; z-index: 1; }
 .diet-plan-meal-note { display:block; font-size:10px; color:var(--text-muted); margin-top:2px; }
 .diet-plan-meal-target { font-size:11px; color:var(--neon-amber); text-align:right; white-space:nowrap; }
 .diet-plan-meal-macros { grid-column:1 / -1; font-size:10px; color:var(--text-muted); }
+.diet-plan-note, .diet-plan-macro-budget { margin:8px 0; font-size:10px; color:var(--text-muted); line-height:1.45; }
+.diet-plan-macro-budget { color:var(--neon-amber); }
 .diet-plan-warning { margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,206,84,0.18); font-size:11px; color:var(--neon-amber); line-height:1.45; }
 .diet-plan-change { margin-top:10px; padding:9px 10px; border:1px solid rgba(255,82,112,0.6); border-radius:var(--radius-sm); background:rgba(255,82,112,0.11); color:#ff5270; font-size:11px; font-weight:800; line-height:1.45; text-transform:uppercase; }
 .diet-plan-no-change { margin-top:10px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; }
@@ -985,11 +987,6 @@ const DIET_PLAN = {
     6: { kind:'same', text:'Semana 6: segue a escada do contrato conforme a média de peso.' }
   },
   phases: {
-    break: {
-      label: 'Diet break', totalCalories: 2650,
-      calorieRule: '2650 kcal/dia', protein_g: 205, fat_g: 60,
-      note: '07/09–20/09: medir TDEE; proteína e gordura são pisos.'
-    },
     cut: {
       label: 'Cut v9b', totalCalories: 1850,
       calorieRule: '1850 kcal/dia (contrato v9b, 28/09)', protein_g: 205, fat_g: 60,
@@ -997,49 +994,74 @@ const DIET_PLAN = {
     }
   },
   meals: [
-    { id:'cafe_manha', label:'Café da manhã', share:0.19, calories:500, protein_g:35, carbs_g:45, carb_role:'carbo flexível',
+    { id:'cafe_manha', label:'Café da manhã',
       quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
+      uncertainty:'Kcal e macros dependem do teor de gordura e do rótulo do leite; o app não estima a composição.',
       note:'Leite em volume explícito; medir em copo graduado.' },
-    { id:'almoco', label:'Almoço', share:0.30, calories:800, protein_g:70, carbs_g:90, carb_role:'carbo flexível',
+    { id:'almoco', label:'Almoço',
       quantity:'400 g de mistura + 400 g de vegetais',
-      uncertainty:'P ≥70 g é meta da refeição, não proteína medida: a mistura precisa ser identificada para confirmar a conta.',
+      uncertainty:'A composição da “mistura” não foi especificada; kcal e macros não podem ser confirmados só pelo peso total.',
       note:'Pesar os 400 g da mistura e os 400 g de vegetais já prontos.' },
-    { id:'cafe_tarde', label:'Café da tarde', share:0.13, calories:350, protein_g:25, carbs_g:45, carb_role:'carbo moderado',
+    { id:'cafe_tarde', label:'Café da tarde',
       quantity:'2 copos; 30 g de leite em pó por copo = 60 g/dia',
+      uncertainty:'Kcal e macros variam por marca e se o leite em pó é integral ou desnatado; conferir o rótulo.',
       note:'Não usar 60 g por copo sem intenção; pesar o pó e seguir o rótulo.' },
-    { id:'pre_treino', label:'Pré-treino', share:0.13, calories:350, protein_g:20, carbs_g:60, carb_role:'carbo prioritário',
-      quantity:'1 refeição: alimentos à sua escolha para fechar P ≥20 g e C ≈60 g',
-      note:'Você escolhe os alimentos; gordura e fibra moderadas.' },
-    { id:'pos_treino', label:'Pós-treino', share:0.25, calories:650, protein_g:55, carbs_g:80, carb_role:'carbo prioritário',
-      quantity:'1 refeição: 30 g de whey + carbo à sua escolha para fechar P ≥55 g e C ≈80 g',
-      note:'Você escolhe o carbo; os 30 g de whey são a referência fixa.' }
+    { id:'pre_treino', label:'Pré-treino',
+      quantity:'Porção fixa e pesada; registrar os alimentos e as gramas usados.',
+      note:'Não inferir macros por refeição pelo nome do horário; usar os rótulos.' },
+    { id:'pos_treino', label:'Pós-treino',
+      quantity:'Porção fixa e pesada; registrar os alimentos e as gramas usados.',
+      note:'Não inferir macros por refeição pelo nome do horário; usar os rótulos.' }
   ]
 };
 
-function getDietWeekPlan(week, config = {}) {
-  const phaseName = DIET_PLAN.weeks[week] || 'break';
+function getDietWeekPlan(week) {
+  const requestedWeek = Number(week);
+  const safeWeek = Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek) ? requestedWeek : 1;
+  const phaseName = DIET_PLAN.weeks[safeWeek] || DIET_PLAN.weeks[1];
   const phase = DIET_PLAN.phases[phaseName];
-  const tdee = Number(config.dietTdeeObserved);
-  const totalCalories = phaseName === 'break'
-    ? phase.totalCalories
-    : (phase.totalCalories != null ? phase.totalCalories
-       : (Number.isFinite(tdee) && tdee > 550 ? Math.round(tdee - 550) : null));
-  const meals = DIET_PLAN.meals.map(meal => {
-    const calories = phaseName === 'break'
-      ? meal.calories
-      : (totalCalories == null ? null : Math.round(totalCalories * meal.share));
-    return { ...meal, calories, carbs_g: phaseName === 'break' ? meal.carbs_g : null };
-  });
+  const totalCalories = phase.totalCalories ?? null;
+  const caloriesForCarbsAtFloors = phaseName === 'cut' && totalCalories != null
+    ? totalCalories - (phase.protein_g * 4 + phase.fat_g * 9)
+    : null;
+  const meals = DIET_PLAN.meals.map(meal => ({ ...meal }));
   return {
-    version: DIET_PLAN.version, week, phase: phaseName, label: phase.label,
+    version: DIET_PLAN.version, week: safeWeek, phase: phaseName, label: phase.label,
     totalCalories, calorieRule: phase.calorieRule, protein_g: phase.protein_g,
-    fat_g: phase.fat_g, note: phase.note, meals
+    fat_g: phase.fat_g, note: phase.note, meals,
+    caloriesForCarbsAtFloors,
+    carbsAtFloors_g: caloriesForCarbsAtFloors == null ? null : caloriesForCarbsAtFloors / 4
   };
 }
 
-function formatDietCalories(meal, totalCalories) {
-  if (meal.calories != null) return `${meal.calories} kcal`;
-  return `${Math.round(meal.share * 100)}% do alvo`;
+function renderDietPlanMarkup(plan) {
+  const total = plan.totalCalories == null ? plan.calorieRule : `${plan.totalCalories} kcal/dia`;
+  const cutWarning = plan.phase === 'cut' && plan.totalCalories == null
+    ? '<div class="diet-plan-warning">O contrato não define um alvo calórico para esta fase; alinhe o plano antes de estimar kcal por refeição.</div>'
+    : '';
+  const weekChange = DIET_PLAN.weekChanges[plan.week];
+  const changeHtml = weekChange
+    ? `<div class="${weekChange.kind === 'change' ? 'diet-plan-change' : 'diet-plan-no-change'}">${weekChange.text}</div>`
+    : '';
+  const macroBudget = plan.phase === 'cut' && plan.caloriesForCarbsAtFloors != null
+    ? `<div class="diet-plan-macro-budget">Com P e G exatamente nos pisos, restam ${plan.caloriesForCarbsAtFloors} kcal (≈${plan.carbsAtFloors_g.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} g de carboidrato). Se P ou G passarem do piso, sobra menos para carbo.</div>`
+    : '';
+  const meals = plan.meals.map(meal => {
+    return `<div class="diet-plan-meal">
+      <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
+      <div class="diet-plan-meal-target">Sem alvo individual</div>
+      <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity}</div>
+      <div class="diet-plan-meal-macros">Kcal/macros por refeição não definidos; pesar os alimentos e usar os rótulos.</div>
+      ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<section class="diet-plan-card">
+    <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
+    <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
+    ${macroBudget}
+    <div class="diet-plan-note">Pré/pós: o contrato cita whey 30 g + carbo pesado na janela noturna, sem divisão explícita entre as refeições. Não há rateio validado de kcal/macros por refeição; use porções e rótulos.</div>
+    ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
+  </section>`;
 }
 
 // RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
@@ -1998,31 +2020,7 @@ const App = {
   renderDietPlan(week, config, targetId = 'diet-plan') {
     const el = document.getElementById(targetId);
     if (!el) return;
-    const plan = getDietWeekPlan(week, config);
-    const total = plan.totalCalories == null ? plan.calorieRule : `${plan.totalCalories} kcal/dia`;
-    const cutWarning = plan.phase === 'cut' && plan.totalCalories == null
-      ? '<div class="diet-plan-warning">Preencha o TDEE observado em Config para transformar a fórmula em kcal por refeição. Até lá, não inventa número.</div>'
-      : '';
-    const weekChange = DIET_PLAN.weekChanges[week];
-    const changeHtml = weekChange
-      ? `<div class="${weekChange.kind === 'change' ? 'diet-plan-change' : 'diet-plan-no-change'}">${weekChange.text}</div>`
-      : '';
-    const meals = plan.meals.map(meal => {
-      const carbs = meal.carbs_g == null ? meal.carb_role : `C ~${meal.carbs_g} g · ${meal.carb_role}`;
-      const kcal = formatDietCalories(meal, plan.totalCalories);
-      return `<div class="diet-plan-meal">
-        <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
-        <div class="diet-plan-meal-target">${kcal}</div>
-        <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity} · alvo ${kcal}</div>
-        <div class="diet-plan-meal-macros">P ≥${meal.protein_g} g · ${carbs}</div>
-        ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
-      </div>`;
-    }).join('');
-    el.innerHTML = `<section class="diet-plan-card">
-      <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${week}</span><span class="diet-plan-kcal">${total}</span></div>
-      <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
-      ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
-    </section>`;
+    el.innerHTML = renderDietPlanMarkup(getDietWeekPlan(week, config));
   },
 
   showDiet() {

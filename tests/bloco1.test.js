@@ -47,38 +47,50 @@ const sandbox = {};
 try {
   new Function('globalThis', dataLayer + ';globalThis.__x = {BLOCO_DES694, WEEK_DATA, ' +
     'DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, runTargetLabel, ' +
-    'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan};')(sandbox);
+    'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         Workout, Storage, getAccSets, runTargetLabel,
-        getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan } = sandbox.__x;
+        getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 
 // 3. Plano alimentar B2: cut v9b a 1850 kcal em todas as semanas (loops/dieta/contrato.md, 28/09).
 ok(Object.keys(DIET_PLAN.weeks).length === B.semanas, 'DIET_PLAN cobre as 6 semanas');
-const breakDiet = getDietWeekPlan(1, {});
-const sum = (key) => breakDiet.meals.reduce((acc, meal) => acc + (meal[key] || 0), 0);
+const cutDiet = getDietWeekPlan(1, {});
 ok(Object.values(DIET_PLAN.weeks).every(w => w === 'cut'), 'B2 nao tem diet break');
-ok(breakDiet.phase === 'cut' && breakDiet.totalCalories === 1850,
+ok(cutDiet.phase === 'cut' && cutDiet.totalCalories === 1850,
    'W1 usa cut v9b a 1850 kcal');
-ok(Math.abs(sum('calories') - 1850) <= 3 && sum('protein_g') === 205,
-   'alocacao do cut fecha ~1850 kcal e 205 g P');
-ok(['cafe_tarde','pre_treino','pos_treino'].every(id => {
-  const meal = breakDiet.meals.find(item => item.id === id);
-  return meal && meal.calories > 0 && meal.protein_g > 0;
-}), 'cafe da tarde/pre/pos tem kcal e proteina');
-const meal = id => breakDiet.meals.find(item => item.id === id);
-ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite',
-   'cafe da manha informa ovos, tomate e 500 ml de leite');
+ok(cutDiet.meals.every(m => m.calories == null && m.share == null),
+   'nao inventa rateio de kcal por refeicao que o contrato nao define');
+ok(cutDiet.protein_g === 205 && cutDiet.fat_g === 60
+   && cutDiet.caloriesForCarbsAtFloors === 490 && cutDiet.carbsAtFloors_g === 122.5,
+   'orcamento de carbo respeita os pisos diarios P/G e fecha as 1850 kcal');
+const renderedDiet = renderDietPlanMarkup(cutDiet);
+ok(renderedDiet.includes('Não há rateio validado de kcal/macros por refeição')
+   && renderedDiet.includes('whey 30 g + carbo pesado na janela noturna')
+   && renderedDiet.includes('restam 490 kcal (≈122,5 g de carboidrato)'),
+   'tela informa ausencia de rateio e mostra o orçamento de macros diario');
+ok(!renderedDiet.includes('P ≥35 g') && !renderedDiet.includes('P ≥25 g')
+   && !renderedDiet.includes('C ~60 g') && !renderedDiet.includes('C ~80 g'),
+   'tela não exibe os alvos por refeição que contradizem as calorias');
+ok(cutDiet.meals.every(m => m.protein_g == null && m.carbs_g == null),
+   'cut nao inventa metas de macro por refeicao ausentes do contrato');
+const meal = id => cutDiet.meals.find(item => item.id === id);
+ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite'
+   && /rótulo|rotulo/i.test(meal('cafe_manha').uncertainty),
+   'cafe informa quantidade e ressalva macros dependentes do leite/rótulo');
 ok(meal('almoco').quantity === '400 g de mistura + 400 g de vegetais'
-   && /meta da refeição/.test(meal('almoco').uncertainty),
-   'almoco informa as duas porcoes e nao finge medir a proteina da mistura');
+   && /composição|composicao/.test(meal('almoco').uncertainty),
+   'almoco informa porcoes sem fingir medir macros da mistura');
 ok(/2 copos/.test(meal('cafe_tarde').quantity) && /30 g/.test(meal('cafe_tarde').quantity)
-   && /60 g\/dia/.test(meal('cafe_tarde').quantity),
-   'cafe da tarde informa 2 copos, 30 g por copo e 60 g/dia');
-ok(/alimentos à sua escolha/.test(meal('pre_treino').quantity)
-   && /30 g de whey/.test(meal('pos_treino').quantity),
-   'pre e pos deixam escolha de alimentos, mas fixam os alvos e 30 g de whey');
+   && /60 g\/dia/.test(meal('cafe_tarde').quantity)
+   && /rótulo|rotulo/i.test(meal('cafe_tarde').uncertainty),
+   'cafe da tarde informa 2 copos, 30 g cada, 60 g/dia e depende do rótulo');
+ok(/Porção fixa e pesada/.test(meal('pre_treino').quantity)
+   && /Porção fixa e pesada/.test(meal('pos_treino').quantity)
+   && !/P\s*≥|C\s*≈/.test(meal('pre_treino').quantity)
+   && !/P\s*≥|C\s*≈/.test(meal('pos_treino').quantity),
+   'pre e pos mostram porcoes sem impor metas de macro por refeicao');
 ok(DIET_PLAN.weekChanges[1].kind === 'change'
    && /1850 kcal/.test(DIET_PLAN.weekChanges[1].text)
    && html.includes('diet-plan-change'),
@@ -86,8 +98,11 @@ ok(DIET_PLAN.weekChanges[1].kind === 'change'
 const cutW3 = getDietWeekPlan(3, { dietTdeeObserved: 2650 });
 ok(cutW3.phase === 'cut' && cutW3.totalCalories === 1850 && /1850/.test(cutW3.calorieRule),
    'W3 usa o contrato fixo de 1850, nao TDEE − 550');
-ok(cutW3.meals.map(m => m.calories).join(',') === '352,555,241,241,463',
-   'W3 distribui 1850 kcal pelas refeicoes');
+ok(cutW3.meals.every(m => m.calories == null),
+   'W3 nao mostra kcal por refeicao sem rateio no contrato');
+const invalidWeek = getDietWeekPlan(0, {});
+ok(invalidWeek.phase === 'cut' && invalidWeek.totalCalories === 1850 && invalidWeek.week === 1,
+   'semana invalida nao ressuscita o break encerrado');
 
 // 4. O plano bate com o Esqueleto
 ok(Object.keys(WEEK_DATA).length === B.semanas, `WEEK_DATA tem ${B.semanas} semanas`);
