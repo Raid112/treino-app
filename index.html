@@ -975,11 +975,11 @@ const WEEK_DATA = {
 // Plano alimentar operacional espelhado de loops/dieta/contrato.md. O contrato
 // continua sendo o dono da fase; este objeto só organiza a execução no app.
 const DIET_PLAN = {
-  version: '2026-09-28-v9b',
-  // B2 (28/09/2026): contrato v9b de loops/dieta/contrato.md. O break do B1 acabou em 20/09.
+  version: '2026-09-30-v9c',
+  // B2 (30/09/2026): contrato v9c de loops/dieta/contrato.md. Os alvos diários da v9b foram mantidos.
   weeks: { 1:'cut', 2:'cut', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
   weekChanges: {
-    1: { kind:'change', text:'Semana 1 (B2): cut v9b, 1850 kcal/dia, P ≥205 g, G ≥60 g. Pré e pós-treino com porção fixa e pesada; refeição livre 1×/semana, moderada.' },
+    1: { kind:'change', text:'Semana 1 (B2): cut v9c, 1850 kcal/dia, P ≥205 g, G ≥60 g. Guia pré/pós: 25–35 g de proteína por refeição; carbo pesado e flexível entre elas. Refeição livre 1×/semana, moderada.' },
     2: { kind:'same', text:'Semana 2: mantém 1850 kcal/dia. Se a média de peso não cair, desce um degrau da escada (1700 kcal + 1 Z2 de 30 min).' },
     3: { kind:'same', text:'Semana 3: segue a escada do contrato conforme a média de peso.' },
     4: { kind:'same', text:'Semana 4: segue a escada do contrato conforme a média de peso.' },
@@ -988,8 +988,8 @@ const DIET_PLAN = {
   },
   phases: {
     cut: {
-      label: 'Cut v9b', totalCalories: 1850,
-      calorieRule: '1850 kcal/dia (contrato v9b, 28/09)', protein_g: 205, fat_g: 60,
+      label: 'Cut v9c', totalCalories: 1850,
+      calorieRule: '1850 kcal/dia (contrato v9c, 30/09)', protein_g: 205, fat_g: 60,
       note: 'Carboidrato fecha as calorias; alvo 0,5–0,8 kg/semana. Escada em loops/dieta/contrato.md.'
     }
   },
@@ -1007,11 +1007,13 @@ const DIET_PLAN = {
       uncertainty:'Kcal e macros variam por marca e se o leite em pó é integral ou desnatado; conferir o rótulo.',
       note:'Não usar 60 g por copo sem intenção; pesar o pó e seguir o rótulo.' },
     { id:'pre_treino', label:'Pré-treino',
-      quantity:'Porção fixa e pesada; registrar os alimentos e as gramas usados.',
-      note:'Não inferir macros por refeição pelo nome do horário; usar os rótulos.' },
+      proteinRange_g:[25,35],
+      quantity:'Guia: 25–35 g de proteína total na refeição; somar a proteína dos alimentos pelos rótulos.',
+      note:'Pesar os alimentos; distribuir o carbo conforme horário e tolerância, dentro do total diário.' },
     { id:'pos_treino', label:'Pós-treino',
-      quantity:'Porção fixa e pesada; registrar os alimentos e as gramas usados.',
-      note:'Não inferir macros por refeição pelo nome do horário; usar os rótulos.' }
+      proteinRange_g:[25,35],
+      quantity:'Guia: 25–35 g de proteína total na refeição; somar a proteína dos alimentos pelos rótulos.',
+      note:'Carbo pesado; pode deslocar parte do pré para o pós sem passar o total diário.' }
   ]
 };
 
@@ -1047,11 +1049,18 @@ function renderDietPlanMarkup(plan) {
     ? `<div class="diet-plan-macro-budget">Com P e G exatamente nos pisos, restam ${plan.caloriesForCarbsAtFloors} kcal (≈${plan.carbsAtFloors_g.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} g de carboidrato). Se P ou G passarem do piso, sobra menos para carbo.</div>`
     : '';
   const meals = plan.meals.map(meal => {
+    const proteinRange = Array.isArray(meal.proteinRange_g) ? meal.proteinRange_g : null;
+    const mealTarget = proteinRange
+      ? `P ${proteinRange[0]}–${proteinRange[1]} g · guia`
+      : 'Sem alvo individual';
+    const macroLabel = proteinRange
+      ? 'Proteína é faixa-guia; kcal/carbo por refeição não definidos; conferir rótulos.'
+      : 'Kcal/macros por refeição não definidos; pesar os alimentos e usar os rótulos.';
     return `<div class="diet-plan-meal">
       <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
-      <div class="diet-plan-meal-target">Sem alvo individual</div>
+      <div class="diet-plan-meal-target">${mealTarget}</div>
       <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity}</div>
-      <div class="diet-plan-meal-macros">Kcal/macros por refeição não definidos; pesar os alimentos e usar os rótulos.</div>
+      <div class="diet-plan-meal-macros">${macroLabel}</div>
       ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
     </div>`;
   }).join('');
@@ -1059,7 +1068,7 @@ function renderDietPlanMarkup(plan) {
     <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
     <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
     ${macroBudget}
-    <div class="diet-plan-note">Pré/pós: o contrato cita whey 30 g + carbo pesado na janela noturna, sem divisão explícita entre as refeições. Não há rateio validado de kcal/macros por refeição; use porções e rótulos.</div>
+    <div class="diet-plan-note">Guia pré/pós: 25–35 g de proteína em cada refeição; 30 g de whey é peso do pó, confira proteína no rótulo. Carbo pesado e flexível entre as duas: mais carbo no pré significa menos no pós, dentro do total diário. Sem rateio de kcal/carbo por refeição e sem “mel à vontade”.</div>
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
   </section>`;
 }
