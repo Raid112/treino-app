@@ -150,6 +150,16 @@ const contractW41MondayStartDate = new Date(2026, 9, 5, 0, 1);
 ok(getISOWeekKey(contractW40SundayEndDate) === '2026-W40'
    && getISOWeekKey(contractW41MondayStartDate) === '2026-W41',
    'semana ISO respeita a virada local domingo 23:59 → segunda 00:01');
+const w40SundayWorkout = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2, contractW40SundayEndDate);
+const w41MondayWorkout = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2, contractW41MondayStartDate);
+ok(w40SundayWorkout.running.target.min === 40
+   && w40SundayWorkout.date === '2026-10-04'
+   && w40SundayWorkout.id === '2026-10-04-d2',
+   'treino de domingo W40 mantém contrato e data/id locais');
+ok(w41MondayWorkout.running.target.min === B.corrida.sessaoMinimaMin
+   && w41MondayWorkout.date === '2026-10-05'
+   && w41MondayWorkout.id === '2026-10-05-d2',
+   'treino de segunda 00:01 usa W41 e data/id locais');
 const runContractW40 = getRunWeekContract(contractW40Date);
 ok(runContractW40 && runContractW40.blockId === 'B2-2026-09-28'
    && runContractW40.volumeTargetMin === 137

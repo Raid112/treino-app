@@ -1091,6 +1091,13 @@ const RUNNING_WEEK_CONTRACTS = {
   }
 };
 
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getISOWeekKey(date = new Date()) {
   // A semana segue a data-calendário local do dispositivo; UTC é só a aritmética ISO.
   // O contrato de origem não fixa um identificador de fuso IANA.
@@ -1659,7 +1666,7 @@ const Workout = {
     const wd = WEEK_DATA[week];
     const cycleId = config.cycleId || createCycleId();
     if (!config.cycleId) config.cycleId = cycleId;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateKey(contractDate);
 
     const base = {
       id: `${today}-d${dayNum}`,
