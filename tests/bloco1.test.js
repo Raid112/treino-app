@@ -1,4 +1,4 @@
-// bloco1.test.js — gate do bloco B1-2026-09-07 (DES-694) sobre index.html.
+// bloco1.test.js — gate do bloco ativo B2-2026-09-28 (DES-694) sobre index.html.
 //
 // Complementa recalibragem.test.js: aquele testa a matematica de 1RM, este testa
 // que os DADOS do plano obedecem o Esqueleto (loops/bloco/bloco.json no KpiMaster).
@@ -46,11 +46,13 @@ globalThis.localStorage = {
 const sandbox = {};
 try {
   new Function('globalThis', dataLayer + ';globalThis.__x = {BLOCO_DES694, WEEK_DATA, ' +
-    'DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, runTargetLabel, ' +
+    'DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, runLabel, runTargetFor, ' +
+    'getISOWeekKey, getRunWeekContract, renderRunContractMarkup, runTargetLabel, ' +
     'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
-        Workout, Storage, getAccSets, runTargetLabel,
+        Workout, Storage, getAccSets, runLabel, runTargetFor, getISOWeekKey,
+        getRunWeekContract, renderRunContractMarkup, runTargetLabel,
         getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 
@@ -139,6 +141,23 @@ ok(orfaos.length === 0, 'todos os temas existem em EXECUTION_PROFILES ' + JSON.s
 
 // 4. generateWorkout nao explode em nenhuma combinacao semana x dia
 const cfg = { oneRM: { squat: 140, bench: 100, deadlift: 180 }, oneRMHistory: [], currentWeek: 1, cycleId: 'test-cycle' };
+const contractW40Date = new Date(2026, 8, 30, 12);
+const afterContractW40Date = new Date(2026, 9, 5, 12);
+ok(getISOWeekKey(contractW40Date) === '2026-W40' && getISOWeekKey(afterContractW40Date) === '2026-W41',
+   'chave ISO da semana troca de W40 para W41 na segunda-feira');
+const runContractW40 = getRunWeekContract(contractW40Date);
+ok(runContractW40 && runContractW40.blockId === 'B2-2026-09-28'
+   && runContractW40.volumeTargetMin === 137
+   && runContractW40.doneLooksLike.sessionsMin === 3
+   && runContractW40.doneLooksLike.volumeMin === 123.3
+   && runContractW40.doneLooksLike.fcAvgMax === 150,
+   'espelho W40 inclui alvo semanal e limiares do contrato');
+const runContractMarkup = renderRunContractMarkup(runContractW40);
+ok(runContractMarkup.includes('alvo 137 min') && runContractMarkup.includes('≥123,3 min e ≥3 estímulos')
+   && runContractMarkup.includes('FC média ≤150 bpm'),
+   'resumo da home mostra o contrato semanal sem chamar o teto de meta');
+ok(getRunWeekContract(afterContractW40Date) === null,
+   'nenhum contrato estático é apresentado depois do fim da W40');
 let erros = 0, comCorrida = 0, comBarra = 0;
 for (let wk = 1; wk <= B.semanas; wk++) {
   for (let d = 1; d <= DAY_DEFS.length; d++) {
@@ -158,7 +177,7 @@ ok(erros === 0, `generateWorkout em ${B.semanas * DAY_DEFS.length} combinacoes `
 
 const w6 = Workout.generateWorkout({ ...cfg, currentWeek: 6 }, 4);
 ok(w6.running && w6.running.target.zone === '5K Teste', 'W6 D4 = teste de saida (5K)');
-const w1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 4);
+const w1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 4, afterContractW40Date);
 ok(w1.running.target.zone === 'Z2' && w1.running.target.min === B.corrida.sessaoMinimaMin,
    `W1 D4 = piso ${B.corrida.sessaoMinimaMin} min Z2`);
 ok(getAccSets(4) === -1 && getAccSets(1) === 0, 'getAccSets: -1 no deload, 0 na base');
@@ -171,15 +190,33 @@ ok(getRunTimerTargetSeconds(w6Run.running.target) === 0, 'timer do W6 5K nao mul
 ok(getRunTimerTargetSeconds({ min: 20 }) === 1200, 'timer normal converte minutos em segundos');
 ok(resolveRunDuration('34.5', null) === 34.5, 'duracao real digitada e preservada');
 
-// D2 (28/09/2026, divisao restaurada) carrega a unica sessao de qualidade da semana: Z3, FC <= 162.
-const w1d2 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2);
-ok(w1d2.running && w1d2.running.target.zone === 'Z3' && w1d2.running.target.fcCap === 162,
-   `W1 D2 = qualidade Z3/162 (got ${JSON.stringify(w1d2.running && w1d2.running.target)})`);
+// Espelho temporario do contrato vivo de 2026-W40; fora da semana volta ao guardrail do bloco.
+const w1d2 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2, contractW40Date);
+ok(w1d2.running && w1d2.running.target.min === 40 && w1d2.running.target.zone === 'Z3'
+   && w1d2.running.target.fcCap === 162 && w1d2.running.target.minEhPiso === false,
+   `W1 D2 = 40 min Z3/162, alvo de sessao (got ${JSON.stringify(w1d2.running && w1d2.running.target)})`);
+ok(runLabel(DAY_DEFS[1], WEEK_DATA[1], contractW40Date) === '40 min Z3 · FC ≤ 162 · TE aeróbico 3–4',
+   'card do Terra + Corrida mostra 40 min, zona, teto de FC e TE do contrato W40');
+ok(w1d2.running.note.includes('joelho ≥3/10') && w1d2.running.note.includes('30 min Z2'),
+   'sessão mostra a regra de parada e adaptação do contrato W40');
+ok(runTargetLabel(w1d2.running.target) === '40 min'
+   && getRunTimerTargetSeconds(w1d2.running.target) === 2400,
+   'timer do contrato W40 usa 40 min, nao o piso antigo de 20');
 ok(w1d2.exercises[0] && w1d2.exercises[0].lift === 'deadlift' && w1d2.exercises[0].type === 'secondary',
    'D2 carrega deadlift secondary (D5 continua primary)');
-const w1d1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 1);
-ok(w1d1.running.target.zone === 'Z2' && w1d1.running.target.fcCap === B.corrida.fcCap,
-   'D1 continua Z2 (so D2 e qualidade)');
+const w1d1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 1, contractW40Date);
+ok(w1d1.running.target.min === 45 && w1d1.running.target.zone === 'Z2'
+   && w1d1.running.target.fcCap === 150,
+   'W1 D1 Agacho + Corrida = 45 min Z2/150');
+const w1d4 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 4, contractW40Date);
+ok(w1d4.running.target.min === 52 && w1d4.running.target.zone === 'Z2'
+   && w1d4.running.target.fcCap === 150,
+   'W1 D4 Long Run = 52 min Z2/150');
+const w41d2 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2, afterContractW40Date);
+ok(w41d2.running.target.min === B.corrida.sessaoMinimaMin
+   && w41d2.running.target.zone === 'Z3' && w41d2.running.target.fcCap === 162
+   && w41d2.running.target.minEhPiso === true,
+   'W40 snapshot expira na W41 e nao vaza para outra semana');
 ok(diasForca.length === 4 && B.forca.sessoes[1] === 4,
    `divisao restaurada = 4 dias de barra (bloco amplo p/ ${JSON.stringify(B.forca.sessoes)})`);
 

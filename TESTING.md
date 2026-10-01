@@ -2,7 +2,7 @@
 
 > Doc vivo. Atualizado a cada rodada de teste. Não fechar a sessão enquanto houver caso ❌ ou ⏳.
 
-Última atualização: 2026-09-08
+Última atualização: 2026-09-30
 App: `index.html` (single-file, vanilla JS + localStorage)
 Servidor de teste: `python3 -m http.server 8123` → `http://localhost:8123/index.html`
 Ferramenta de teste: Node.js para lógica; UI Android ainda pendente.
@@ -138,6 +138,17 @@ node tests/recalibragem.test.js # matematica de 1RM (27 checks)
 ```
 
 O primeiro testa os **dados** do plano contra o Esqueleto; o segundo testa a **matemática** de 1RM. Rodar os dois antes de qualquer push — o app vai pro celular via GitHub Pages e um `WEEK_DATA[week]` undefined trava a home sem recurso offline.
+
+### Contrato de corrida W40 — 2026-09-30
+
+O contrato vivo está em `KpiMaster/loops/corrida/contrato.json`. O app espelha só esta semana, protegido por ISO week + `blockId`; na W41 deve voltar ao guardrail do bloco, sem reaproveitar minutos vencidos.
+
+- D2 Terra + corrida: 40 min Z3, FC ≤162, TE aeróbico 3–4.
+- D1 Agacho + corrida: 45 min Z2, FC ≤150, TE aeróbico 3–4.
+- D4 Long Run: 52 min Z2, FC ≤150, TE aeróbico 3–4.
+- Semana: alvo 137 min; cumprimento com ≥3 estímulos, ≥123,3 min e FC média ≤150.
+- Regra de parada visível: dor no joelho ≥3/10 durante a corrida/no dia seguinte ou recovery red → próxima sessão 30 min Z2 e o bot avisa o Caio.
+- Coberto por `node tests/bloco1.test.js`; a suite também valida expiração na W41. Read-back dinâmico continua pendente.
 
 ### Caso que só aparece no celular
 

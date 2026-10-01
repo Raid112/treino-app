@@ -1073,14 +1073,61 @@ function renderDietPlanMarkup(plan) {
   </section>`;
 }
 
-// RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
-// O volume semanal de corrida e do contrato (loops/corrida/plano.md), gerado toda
-// segunda por contrato_semanal.py a partir de aderencia, ACWR, HRV e sono. Manter
-// uma tabela de minutos aqui criaria um segundo dono para o mesmo numero — e e
-// exatamente assim que ele fica errado. O app espelha so o guardrail por sessao
-// (que vem do Esqueleto e nao muda dentro do bloco) e registra o executado.
-function runLabel(dayDef, wd) {
+// O contrato semanal continua pertencendo ao KpiMaster. Este espelho tem prazo
+// explícito: só existe para 2026-W40 e só vale no bloco B2; depois, cai no
+// guardrail do bloco. Não copiar estes minutos para outras semanas: o app ainda
+// não faz read-back dinâmico do contrato.
+const RUNNING_WEEK_CONTRACTS = {
+  '2026-W40': {
+    blockId: 'B2-2026-09-28',
+    volumeTargetMin:137,
+    doneLooksLike:{ sessionsMin:3, volumeMin:123.3, fcAvgMax:150 },
+    stopRule:'Dor no joelho ≥3/10 durante a corrida ou no dia seguinte, ou recovery red: a próxima sessão vira 30 min Z2 e o bot avisa o Caio.',
+    sessions: {
+      base:    { min:45, zone:'Z2', fcCap:150, teAerobico:[3,4] }, // Agacho + corrida
+      quality: { min:40, zone:'Z3', fcCap:162, teAerobico:[3,4] }, // Terra + corrida
+      longa:   { min:52, zone:'Z2', fcCap:150, teAerobico:[3,4] }  // Long run
+    }
+  }
+};
+
+function getISOWeekKey(date = new Date()) {
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const isoDay = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - isoDay);
+  const isoYear = utcDate.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  const isoWeek = Math.ceil((((utcDate - yearStart) / 86400000) + 1) / 7);
+  return `${isoYear}-W${String(isoWeek).padStart(2, '0')}`;
+}
+
+function getRunWeekContract(date = new Date()) {
+  const weekKey = getISOWeekKey(date);
+  const contract = RUNNING_WEEK_CONTRACTS[weekKey];
+  if (!contract || contract.blockId !== BLOCO_DES694.id) return null;
+  return { ...contract, weekKey };
+}
+
+function getWeeklyRunContract(dayDef, date = new Date()) {
+  const contract = getRunWeekContract(date);
+  const session = contract && contract.sessions[dayDef && dayDef.run];
+  return session ? { ...session, minEhPiso:false, contractWeek:contract.weekKey,
+                     stopRule:contract.stopRule } : null;
+}
+
+function renderRunContractMarkup(contract) {
+  if (!contract) return '';
+  const volumeMin = String(contract.doneLooksLike.volumeMin).replace('.', ',');
+  return `<div class="week-summary-note">Corrida ${contract.weekKey}: alvo ${contract.volumeTargetMin} min · cumprir com ≥${volumeMin} min e ≥${contract.doneLooksLike.sessionsMin} estímulos · FC média ≤${contract.doneLooksLike.fcAvgMax} bpm.</div>`;
+}
+
+function runLabel(dayDef, wd, date = new Date()) {
   if (wd.specialRun === '5k_test' && dayDef.run === 'longa') return '5K TESTE';
+  const weekly = getWeeklyRunContract(dayDef, date);
+  if (weekly) {
+    const [teMin, teMax] = weekly.teAerobico;
+    return `${weekly.min} min ${weekly.zone} · FC ≤ ${weekly.fcCap} · TE aeróbico ${teMin}–${teMax}`;
+  }
   const c = BLOCO_DES694.corrida;
   if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
     return `≥${c.sessaoMinimaMin}min ${c.qualidade.zona} · FC ≤ ${c.qualidade.fcCap}`;
@@ -1088,7 +1135,9 @@ function runLabel(dayDef, wd) {
   return `≥${c.sessaoMinimaMin}min ${c.zona} · FC ≤ ${c.fcCap}`;
 }
 
-function runTargetFor(dayDef) {
+function runTargetFor(dayDef, date = new Date()) {
+  const weekly = getWeeklyRunContract(dayDef, date);
+  if (weekly) return { ...weekly, tipo:dayDef.run };
   const c = BLOCO_DES694.corrida;
   if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
     return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.qualidade.zona,
@@ -1602,7 +1651,7 @@ const Workout = {
     ).join('<br>');
   },
 
-  generateWorkout(config, dayNum) {
+  generateWorkout(config, dayNum, contractDate = new Date()) {
     const dayDef = DAY_DEFS[dayNum - 1];
     const week = config.currentWeek;
     const wd = WEEK_DATA[week];
@@ -1665,14 +1714,16 @@ const Workout = {
       });
     }
 
-    // Running — alvo por sessao vem do Esqueleto; o volume da semana e do contrato.
+    // Running — espelha o contrato da semana quando ativo; fora dele usa o guardrail do Esqueleto.
     if (dayDef.type === 'running' || dayDef.type === 'combined') {
-      const t = runTargetFor(dayDef);
+      const t = runTargetFor(dayDef, contractDate);
       const teste = wd.specialRun === '5k_test' && dayDef.run === 'longa';
+      const weekContract = getRunWeekContract(contractDate);
       base.running = {
         target: teste ? { min: null, zone: '5K Teste', fcCap: null, minEhPiso: false }
-                      : { min: t.min, zone: t.zone, fcCap: t.fcCap, minEhPiso: true },
+                      : { min: t.min, zone: t.zone, fcCap: t.fcCap, minEhPiso: t.minEhPiso },
         note: teste ? 'Teste de saida: 5K de rua. So com recovery.flag verde e sem dor.'
+                    : weekContract ? weekContract.stopRule
                     : 'Volume da semana vem do contrato (loops/corrida/plano.md).',
         actual: { completed: false, duration: null, hr: null, pace: null }
       };
@@ -2051,8 +2102,9 @@ const App = {
     const TARGET = 454;
     const pct1k = Math.min((total / TARGET) * 100, 100);
     const runDone = Storage.getCompletedRunMinutes(week);
-    // Denominador e o TETO do bloco, nao um alvo: o alvo da semana e do contrato e o
-    // app nao o conhece. Rotulado como teto pra nao ser lido como meta.
+    const runContractHtml = renderRunContractMarkup(getRunWeekContract());
+    // Denominador continua sendo o TETO do bloco, nao a meta; o contrato ativo
+    // aparece separadamente abaixo, sem misturar os dois numeros.
     const runTarget = BLOCO_DES694.corrida.volumeTetoMin;
     const pct5k = Math.min((runDone / runTarget) * 100, 100);
     const noteHtml = wd.nota ? `<div class="week-summary-note">${wd.nota}</div>` : '';
@@ -2076,6 +2128,7 @@ const App = {
           <div class="week-summary-theme">${wd.theme}</div>
           ${noteHtml}
           ${warnHtml}
+          ${runContractHtml}
         </div>
         <div class="week-summary-goal">
           <div class="week-summary-goal-label">CORRIDA</div>

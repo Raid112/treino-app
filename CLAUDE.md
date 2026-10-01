@@ -38,7 +38,7 @@ Não há build/lint/package.json. Há testes de lógica em `tests/` e um roteiro
 ### Constantes de dados
 - `BLOCO_DES694` — Espelho de `loops/bloco/bloco.json` no KpiMaster (o **Esqueleto**). Estável pelas 6 semanas: `fcCap` 150 (Z2) + 1 sessão/semana de qualidade em Z3 `fcCap` 162 (`corrida.qualidade`), piso 20 min/sessão, teto 180 min/semana, força RPE 8 (9 só com gate verde), `semSingles`, `forca.sessoes` `[2,4]`. **28/09/2026**: bloco resetado para `B2-2026-09-28` (início 2026-09-28, válido até 2026-11-08) — mudança grande de estratégia (S1 volta a ser hipertrofia) reinicia a contagem de 6 semanas em vez de continuar a numeração do B1; regra permanente do Caio. `alvos.pesoMa7Max` subiu para 106.5. Corrida e `forca.sessoes` seguem iguais ao B1 (4 dias de barra). `loops/bloco/bloco.json` no KpiMaster precisa espelhar este bloco (id, alvos) — não foi tocado por este repo.
 - `WEEK_DATA` — Força das semanas 1-6 do bloco ativo. Temas reusam chaves de `EXECUTION_PROFILES` (`Hipertrofia` na S1, `Forca` nas semanas de força, `Deload` na 4 e na 6) **de propósito**: tema novo quebra `EXECUTION_PROFILES[w.theme].label` e faz `superMetaMode()` devolver null em silêncio. Cada semana: `p` (primário) e `sec` (secundário) com `{s, r, pct}` — RPE governa o teto, o `pct` dá a carga de partida e a recalibragem corrige pelo que foi levantado. `WEEK_DATA[w].topSets` (array, desde o B2 — no B1 era o campo singular `topSet`) = top sets perto da falha nas semanas de força (S2/S3/S5): o lift "da vez" (rotação terra→supino→agacho) faz 3 reps @RPE9 (~90% 1RM) e os outros dois fazem 3 reps @RPE8 (~85% 1RM), cada um no dia em que ELE é primary (`Workout.initTopSet` procura `wd.topSets.find(t => t.lift === ex.lift)`). S1 (hipertrofia), S4 (deload) e S6 (taper/teste) não levam top set.
-- `RUNNING_DATA` **não existe mais.** O volume semanal de corrida é do **Contrato** (`loops/corrida/plano.md`), gerado toda segunda por `contrato_semanal.py`. O app espelha só o guardrail por sessão (`runTargetFor`/`runLabel`) e registra o executado — dois donos para o mesmo número é como ele fica errado.
+- `RUNNING_DATA` **não existe como tabela permanente.** O contrato semanal continua sendo do KpiMaster. `RUNNING_WEEK_CONTRACTS` é um espelho time-boxed só para `2026-W40`, protegido por semana ISO e bloco `B2-2026-09-28`: 40 min Z3 (Terra), 45 min Z2 (Agacho), 52 min Z2 (Long Run), resumo semanal e regra de parada. Depois da W40, o app volta ao guardrail do bloco. Não acrescentar semanas futuras aqui; ainda não existe read-back dinâmico.
 - `DAY_DEFS` — 6 dias. Tipos: `strength` (2 exercícios), `combined` (1 strength + corrida), `running`, `accessories`. Cada lift tem 1 dia como `primary` e pode aparecer como `secondary` em outro (ex: deadlift é secondary no D2, primary no D5).
 - `ACCESSORIES`, `EXECUTION_PROFILES` (perfil de execução por tema: tempo concêntrico/excêntrico, RPE, descanso).
 - `LIFT_NAMES`, `ZONE_INFO`, `CADENCE_TARGETS`.
@@ -80,7 +80,7 @@ Percentual do 1RM, arredonda a 2.5kg, exibe breakdown da barra (20kg/10kg + anil
 
 ### PWA
 - `manifest.json` — Tema/bg `#000000`, standalone, ícones SVG.
-- `sw.js` — Cache `treino-v7` (bump a cada deploy). Network-first para Google Fonts; cache-first para assets locais; **bypass network-only para o Worker** (dados dinâmicos).
+- `sw.js` — Cache `treino-v18` (bump a cada deploy). Network-first para Google Fonts; cache-first para assets locais; **bypass network-only para o Worker** (dados dinâmicos).
 
 ### Integração Garmin (Readiness tile na home)
 
@@ -123,6 +123,6 @@ Este app é a **superfície de execução** do bloco, não o dono do plano.
 | Contrato (força) | **este app** | `WEEK_DATA` | estático no bloco |
 | Ledger | append-only | `loops/ledger/intervencoes.jsonl` | por evento |
 
-Força é estática aqui porque o gerador não escreve em `loops/forca/` até a Fase 4 — não há dono concorrente. Corrida é o contrário: qualquer minuto de volume semanal hardcodado aqui fica velho na segunda seguinte.
+Força é estática aqui porque o gerador não escreve em `loops/forca/` até a Fase 4 — não há dono concorrente. Corrida é o contrário: KpiMaster é o dono. O espelho W40 é exceção temporária, expira pela semana ISO e não pode ser copiado para semanas futuras.
 
-> **Read-back do contrato ainda não existe.** Precisaria de uma rota `/contrato` no Worker `garmin-cf-probe`, cujo repo não está na VM. Até lá o app mostra o guardrail por sessão e o volume da semana se lê no `plano.md`.
+> **Read-back dinâmico do contrato ainda não existe.** O espelho W40 não substitui essa integração: a partir da W41, o app volta ao guardrail por sessão e o volume semanal continua vindo de `plano.md`. Uma solução permanente precisa de uma rota autenticada `/contrato` no Worker `garmin-cf-probe`.
