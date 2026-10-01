@@ -147,8 +147,8 @@ O contrato vivo está em `KpiMaster/loops/corrida/contrato.json`. O app espelha 
 - D1 Agacho + corrida: 45 min Z2, FC ≤150, TE aeróbico 3–4.
 - D4 Long Run: 52 min Z2, FC ≤150, TE aeróbico 3–4.
 - Semana: alvo 137 min; cumprimento com ≥3 estímulos, ≥123,3 min e FC média ≤150.
-- Regra de parada visível: dor no joelho ≥3/10 durante a corrida/no dia seguinte ou recovery red → próxima sessão 30 min Z2 e o bot avisa o Caio.
-- Coberto por `node tests/bloco1.test.js`; a suite também valida expiração na W41. Read-back dinâmico continua pendente.
+- Regra de parada visível e manual: o app não detecta dor/recovery nem altera o treino automaticamente; se houver dor no joelho ≥3/10 durante a corrida/no dia seguinte ou recovery red, informe o bot e ajuste a próxima sessão para 30 min Z2.
+- Coberto por `node tests/bloco1.test.js`; a suite valida expiração na W41 e virada local domingo 23:59 → segunda 00:01. O app segue o calendário do dispositivo; o contrato não define um fuso IANA. Read-back dinâmico continua pendente.
 
 ### Caso que só aparece no celular
 

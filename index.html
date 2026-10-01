@@ -1082,7 +1082,7 @@ const RUNNING_WEEK_CONTRACTS = {
     blockId: 'B2-2026-09-28',
     volumeTargetMin:137,
     doneLooksLike:{ sessionsMin:3, volumeMin:123.3, fcAvgMax:150 },
-    stopRule:'Dor no joelho ≥3/10 durante a corrida ou no dia seguinte, ou recovery red: a próxima sessão vira 30 min Z2 e o bot avisa o Caio.',
+    stopRule:'Regra manual: o app não detecta dor/recovery nem altera o treino automaticamente. Se houver dor no joelho ≥3/10 durante a corrida ou no dia seguinte, ou recovery red, informe o bot e ajuste a próxima sessão para 30 min Z2.',
     sessions: {
       base:    { min:45, zone:'Z2', fcCap:150, teAerobico:[3,4] }, // Agacho + corrida
       quality: { min:40, zone:'Z3', fcCap:162, teAerobico:[3,4] }, // Terra + corrida
@@ -1092,6 +1092,8 @@ const RUNNING_WEEK_CONTRACTS = {
 };
 
 function getISOWeekKey(date = new Date()) {
+  // A semana segue a data-calendário local do dispositivo; UTC é só a aritmética ISO.
+  // O contrato de origem não fixa um identificador de fuso IANA.
   const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const isoDay = utcDate.getUTCDay() || 7;
   utcDate.setUTCDate(utcDate.getUTCDate() + 4 - isoDay);

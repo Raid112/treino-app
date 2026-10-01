@@ -145,6 +145,11 @@ const contractW40Date = new Date(2026, 8, 30, 12);
 const afterContractW40Date = new Date(2026, 9, 5, 12);
 ok(getISOWeekKey(contractW40Date) === '2026-W40' && getISOWeekKey(afterContractW40Date) === '2026-W41',
    'chave ISO da semana troca de W40 para W41 na segunda-feira');
+const contractW40SundayEndDate = new Date(2026, 9, 4, 23, 59);
+const contractW41MondayStartDate = new Date(2026, 9, 5, 0, 1);
+ok(getISOWeekKey(contractW40SundayEndDate) === '2026-W40'
+   && getISOWeekKey(contractW41MondayStartDate) === '2026-W41',
+   'semana ISO respeita a virada local domingo 23:59 → segunda 00:01');
 const runContractW40 = getRunWeekContract(contractW40Date);
 ok(runContractW40 && runContractW40.blockId === 'B2-2026-09-28'
    && runContractW40.volumeTargetMin === 137
@@ -197,8 +202,11 @@ ok(w1d2.running && w1d2.running.target.min === 40 && w1d2.running.target.zone ==
    `W1 D2 = 40 min Z3/162, alvo de sessao (got ${JSON.stringify(w1d2.running && w1d2.running.target)})`);
 ok(runLabel(DAY_DEFS[1], WEEK_DATA[1], contractW40Date) === '40 min Z3 · FC ≤ 162 · TE aeróbico 3–4',
    'card do Terra + Corrida mostra 40 min, zona, teto de FC e TE do contrato W40');
-ok(w1d2.running.note.includes('joelho ≥3/10') && w1d2.running.note.includes('30 min Z2'),
-   'sessão mostra a regra de parada e adaptação do contrato W40');
+ok(w1d2.running.note.includes('joelho ≥3/10') && w1d2.running.note.includes('30 min Z2')
+   && w1d2.running.note.includes('Regra manual')
+   && w1d2.running.note.includes('o app não detecta dor/recovery')
+   && w1d2.running.note.includes('nem altera o treino automaticamente'),
+   'nota informa gatilho e deixa claro que a adaptação não é automatizada pelo app');
 ok(runTargetLabel(w1d2.running.target) === '40 min'
    && getRunTimerTargetSeconds(w1d2.running.target) === 2400,
    'timer do contrato W40 usa 40 min, nao o piso antigo de 20');
