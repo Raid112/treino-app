@@ -824,7 +824,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <!-- DIET -->
   <div id="diet" class="screen">
     <div class="history-header"><h2>Dieta por semana</h2></div>
-    <div class="diet-screen-note">Alvos operacionais para você escolher os alimentos. W1/W2 são break; W3–W6 viram kcal depois do TDEE observado.</div>
+    <div class="diet-screen-note">Alvos operacionais exibidos por semana; não há rateio fixo de calorias ou carboidratos por refeição.</div>
     <div id="diet-list"></div>
   </div>
 
@@ -978,9 +978,19 @@ const DIET_PLAN = {
   version: '2026-09-30-v9c',
   // B2 (30/09/2026): contrato v9c de loops/dieta/contrato.md. Os alvos diários da v9b foram mantidos.
   weeks: { 1:'cut', 2:'cut', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
+  // Override operacional da review de S2 (06/10/2026); não altera o contrato-base
+  // nem as semanas seguintes. As porções/refeições permanecem sem rateio inventado.
+  weekOverrides: {
+    2: {
+      label: 'Cut · S2 (ajuste operacional)',
+      totalCalories: 1700,
+      calorieRule: '1700 kcal/dia (alvo operacional aprovado para S2; exceção semanal ao alvo-base v9c de 1850).',
+      note: 'Ajuste operacional restrito à S2; carboidrato fecha as calorias.'
+    }
+  },
   weekChanges: {
     1: { kind:'change', text:'Semana 1 (B2): cut v9c, 1850 kcal/dia, P ≥205 g, G ≥60 g. Guia pré/pós: 25–35 g de proteína por refeição; carbo pesado e flexível entre elas. Refeição livre 1×/semana, moderada.' },
-    2: { kind:'same', text:'Semana 2: mantém 1850 kcal/dia. Se a média de peso não cair, desce um degrau da escada (1700 kcal + 1 Z2 de 30 min).' },
+    2: { kind:'change', text:'Semana 2 (B2/S2): alvo operacional de 1.700 kcal/dia, P ≥205 g e G ≥60 g; carboidrato fecha o total. Acrescentar +30 min de Z2 em bicicleta/ergométrica, como atividade separada e fora do volume de corrida.' },
     3: { kind:'same', text:'Semana 3: segue a escada do contrato conforme a média de peso.' },
     4: { kind:'same', text:'Semana 4: segue a escada do contrato conforme a média de peso.' },
     5: { kind:'same', text:'Semana 5: segue a escada do contrato conforme a média de peso.' },
@@ -1022,15 +1032,18 @@ function getDietWeekPlan(week) {
   const safeWeek = Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek) ? requestedWeek : 1;
   const phaseName = DIET_PLAN.weeks[safeWeek] || DIET_PLAN.weeks[1];
   const phase = DIET_PLAN.phases[phaseName];
-  const totalCalories = phase.totalCalories ?? null;
+  const override = DIET_PLAN.weekOverrides[safeWeek] || {};
+  const totalCalories = override.totalCalories ?? phase.totalCalories ?? null;
   const caloriesForCarbsAtFloors = phaseName === 'cut' && totalCalories != null
     ? totalCalories - (phase.protein_g * 4 + phase.fat_g * 9)
     : null;
   const meals = DIET_PLAN.meals.map(meal => ({ ...meal }));
   return {
-    version: DIET_PLAN.version, week: safeWeek, phase: phaseName, label: phase.label,
-    totalCalories, calorieRule: phase.calorieRule, protein_g: phase.protein_g,
-    fat_g: phase.fat_g, note: phase.note, meals,
+    version: DIET_PLAN.version, week: safeWeek, phase: phaseName,
+    label: override.label ?? phase.label,
+    totalCalories, calorieRule: override.calorieRule ?? phase.calorieRule,
+    protein_g: phase.protein_g, fat_g: phase.fat_g,
+    note: override.note ?? phase.note, meals,
     caloriesForCarbsAtFloors,
     carbsAtFloors_g: caloriesForCarbsAtFloors == null ? null : caloriesForCarbsAtFloors / 4
   };

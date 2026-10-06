@@ -106,11 +106,27 @@ ok(DIET_PLAN.weekChanges[1].kind === 'change'
    && /v9c/.test(DIET_PLAN.weekChanges[1].text)
    && html.includes('diet-plan-change'),
    'W1 do B2 destaca a entrada no cut v9c');
+const cutS2 = getDietWeekPlan(2, {});
+ok(cutS2.phase === 'cut' && cutS2.totalCalories === 1700
+   && cutS2.protein_g === 205 && cutS2.fat_g === 60,
+   'S2 mostra alvo operacional de 1700 kcal com os pisos P/G');
+ok(cutS2.caloriesForCarbsAtFloors === 340 && cutS2.carbsAtFloors_g === 85,
+   'S2 calcula somente o saldo diário de carbo nos pisos, sem rateio por refeição');
+const renderedS2Diet = renderDietPlanMarkup(cutS2);
+ok(renderedS2Diet.includes('Semana 2 (B2/S2)')
+   && renderedS2Diet.includes('+30 min de Z2 em bicicleta/ergométrica')
+   && renderedS2Diet.includes('fora do volume de corrida'),
+   'S2 exibe a nota de bicicleta separada do volume de corrida');
 const cutW3 = getDietWeekPlan(3, { dietTdeeObserved: 2650 });
 ok(cutW3.phase === 'cut' && cutW3.totalCalories === 1850 && /1850/.test(cutW3.calorieRule),
-   'W3 usa o contrato fixo de 1850, nao TDEE − 550');
+   'W3 permanece no contrato fixo de 1850, nao TDEE − 550');
 ok(cutW3.meals.every(m => m.calories == null),
    'W3 nao mostra kcal por refeicao sem rateio no contrato');
+ok(getDietWeekPlan(1, {}).totalCalories === 1850
+   && Object.keys(WEEK_DATA).length === B.semanas,
+   'override de S2 nao altera W1 nem a prescricao de forca');
+ok(DAY_DEFS.filter(d => d.type === 'running' || d.type === 'combined').length === 3,
+   'nota de bicicleta nao cria nem soma uma sessao de corrida');
 const invalidWeek = getDietWeekPlan(0, {});
 ok(invalidWeek.phase === 'cut' && invalidWeek.totalCalories === 1850 && invalidWeek.week === 1,
    'semana invalida nao ressuscita o break encerrado');
@@ -118,6 +134,8 @@ ok(invalidWeek.phase === 'cut' && invalidWeek.totalCalories === 1850 && invalidW
 // 4. O plano bate com o Esqueleto
 ok(Object.keys(WEEK_DATA).length === B.semanas, `WEEK_DATA tem ${B.semanas} semanas`);
 ok(B.id === 'B2-2026-09-28', 'bloco = B2-2026-09-28');
+ok(WEEK_DATA[2].theme === 'Forca' && WEEK_DATA[2].p.s === 3 && WEEK_DATA[2].p.r === 5,
+   'S2 mantém séries primárias de força em 3x5');
 
 const singles = Object.entries(WEEK_DATA)
   .filter(([, w]) => (w.p && w.p.r === 1) || (w.sec && w.sec.r === 1)).map(([k]) => k);
