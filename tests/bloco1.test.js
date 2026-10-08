@@ -47,12 +47,52 @@ const sandbox = {};
 try {
   new Function('globalThis', dataLayer + ';globalThis.__x = {BLOCO_DES694, WEEK_DATA, ' +
     'DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, runTargetLabel, ' +
-    'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup};')(sandbox);
+    'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup, ' +
+    'formatTopSetPrescription: typeof formatTopSetPrescription === "function" ? formatTopSetPrescription : null, ' +
+    'renderExerciseSeriesOverview: typeof renderExerciseSeriesOverview === "function" ? renderExerciseSeriesOverview : null};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         Workout, Storage, getAccSets, runTargetLabel,
-        getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup } = sandbox.__x;
+        getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
+        formatTopSetPrescription, renderExerciseSeriesOverview } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
+
+// A tela deve deixar o top set visualmente distinto das séries de trabalho e
+// contar ambos no volume prescrito, sem mutar os dados do treino.
+const setUiCfg = { oneRM: { squat: 140, bench: 100, deadlift: 180 }, oneRMHistory: [], currentWeek: 2, cycleId: 'test-cycle' };
+const deadliftDayS2 = Workout.generateWorkout(setUiCfg, 5);
+const deadliftS2 = deadliftDayS2.exercises.find(e => e.lift === 'deadlift');
+ok(typeof formatTopSetPrescription === 'function' && typeof renderExerciseSeriesOverview === 'function',
+   'helpers de apresentação de top set e séries estão disponíveis para teste');
+if (typeof formatTopSetPrescription === 'function' && typeof renderExerciseSeriesOverview === 'function') {
+  const plannedBeforeRender = JSON.stringify(deadliftS2.planned);
+  const topSetLabel = formatTopSetPrescription(deadliftS2.actual.topSet);
+  const seriesOverview = renderExerciseSeriesOverview(deadliftS2, true);
+  ok(topSetLabel === 'Top set — 1×3 @RPE 9', `top set tem rótulo e alvo próprios (${topSetLabel})`);
+  ok(seriesOverview.includes('Séries de trabalho') && seriesOverview.includes('3×5'),
+     'renderer separa o bloco de trabalho em 3×5');
+  ok(seriesOverview.includes('Total prescrito') && seriesOverview.includes('4 séries')
+     && seriesOverview.includes('1 top set + 3 de trabalho'),
+     'renderer mostra total de 4 séries e sua composição');
+  const blockedOverview = renderExerciseSeriesOverview(deadliftS2, false);
+  ok(blockedOverview.includes('4 séries') && blockedOverview.includes('1 top set (desativado hoje) + 3 de trabalho')
+     && blockedOverview.includes('Hoje: 3 séries de trabalho'),
+     'total distingue prescrição completa de top set desativado por readiness');
+  const noTopSet = Workout.generateWorkout({ ...setUiCfg, currentWeek: 1 }, 5).exercises.find(e => e.lift === 'deadlift');
+  const normalOverview = renderExerciseSeriesOverview(noTopSet, false);
+  ok(normalOverview.includes('Total prescrito') && normalOverview.includes('3 séries')
+     && normalOverview.includes('3 séries de trabalho') && !normalOverview.includes('top set'),
+     'sem top set, o total representa apenas as séries de trabalho');
+  const benchS2 = deadliftDayS2.exercises.find(e => e.lift === 'bench');
+  const benchOverview = benchS2 ? renderExerciseSeriesOverview(benchS2, false) : '';
+  ok(benchS2 && benchS2.planned.sets === 2 && benchS2.planned.reps === 5 && !benchS2.actual.topSet,
+     'supino do D5 mantém a prescrição normal de 2×5, sem top set');
+  ok(benchOverview.includes('2×5') && benchOverview.includes('2 séries')
+     && benchOverview.includes('2 séries de trabalho') && !benchOverview.includes('top set'),
+     'renderer apresenta supino como 2 séries de trabalho, total 2');
+  ok(JSON.stringify(deadliftS2.planned) === plannedBeforeRender,
+     'renderer não altera a prescrição armazenada');
+}
 
 // 3. Plano alimentar B2: cut v9c a 1850 kcal em todas as semanas (loops/dieta/contrato.md, 30/09).
 ok(Object.keys(DIET_PLAN.weeks).length === B.semanas, 'DIET_PLAN cobre as 6 semanas');

@@ -328,6 +328,32 @@ body > * { position: relative; z-index: 1; }
 .exercise-type.secondary { background: rgba(224,180,65,0.12); color: var(--neon-purple); border-color: rgba(224,180,65,0.25); }
 .exercise-scheme { color: var(--text-muted); margin-bottom: 16px; font-size: 14px; }
 .exercise-scheme strong { color: var(--neon-cyan); font-size: 17px; font-family: var(--font-display); font-weight: 600; text-shadow: 0 0 8px rgba(214,219,226,0.2); }
+.work-set-group {
+  margin-top: 12px; padding: 12px;
+  border: 1px solid rgba(214,219,226,0.16); border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.025);
+}
+.work-set-overview {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding: 11px 12px; margin-bottom: 14px;
+  border: 1px solid rgba(214,219,226,0.12); border-radius: var(--radius-sm);
+  background: rgba(214,219,226,0.035);
+}
+.work-set-overview-main { display: flex; flex-direction: column; gap: 3px; }
+.work-set-overview-label {
+  color: var(--neon-cyan); font: 700 10px var(--font-display);
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.work-set-overview-scheme { color: var(--text-primary); font: 700 20px var(--font-display); }
+.exercise-total-summary { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.exercise-total-label { color: var(--text-muted); font: 700 9px var(--font-display); letter-spacing: 1px; text-transform: uppercase; }
+.exercise-total-count { color: var(--neon-amber); font: 700 14px var(--font-display); }
+.exercise-total-detail, .exercise-total-today { max-width: 210px; color: var(--text-muted); font-size: 10px; line-height: 1.35; }
+.exercise-total-today { color: var(--neon-amber); font-weight: 600; }
+@media (max-width: 380px) {
+  .work-set-overview { align-items: flex-start; }
+  .exercise-total-summary { align-items: flex-start; text-align: left; }
+}
 .exercise-input { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .exercise-input label { color: var(--text-muted); font-size: 13px; }
 .weight-input {
@@ -1084,6 +1110,35 @@ function renderDietPlanMarkup(plan) {
     <div class="diet-plan-note">Guia pré/pós: 25–35 g de proteína em cada refeição; 30 g de whey é peso do pó, confira proteína no rótulo. Carbo pesado e flexível entre as duas: mais carbo no pré significa menos no pós, dentro do total diário. Sem rateio de kcal/carbo por refeição e sem “mel à vontade”.</div>
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
   </section>`;
+}
+
+function formatTopSetPrescription(ts) {
+  return `Top set — 1×${ts.reps} @RPE ${ts.rpeTarget}`;
+}
+
+function renderExerciseSeriesOverview(ex, topSetEnabled = true) {
+  const topSet = ex.actual && ex.actual.topSet;
+  const workSets = ex.planned.sets;
+  const totalSets = workSets + (topSet ? 1 : 0);
+  const totalDetail = topSet
+    ? `1 top set${topSetEnabled ? '' : ' (desativado hoje)'} + ${workSets} de trabalho`
+    : `${workSets} séries de trabalho`;
+  const todayDetail = topSet && !topSetEnabled
+    ? `<span class="exercise-total-today">Hoje: ${workSets} séries de trabalho</span>`
+    : '';
+  const totalUnit = totalSets === 1 ? 'série' : 'séries';
+  return `<div class="work-set-overview">
+    <div class="work-set-overview-main">
+      <span class="work-set-overview-label">Séries de trabalho</span>
+      <strong class="work-set-overview-scheme">${workSets}×${ex.planned.reps}</strong>
+    </div>
+    <div class="exercise-total-summary">
+      <span class="exercise-total-label">Total prescrito</span>
+      <strong class="exercise-total-count">${totalSets} ${totalUnit}</strong>
+      <span class="exercise-total-detail">${totalDetail}</span>
+      ${todayDetail}
+    </div>
+  </div>`;
 }
 
 // RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
@@ -2293,22 +2348,25 @@ const App = {
         <span class="exercise-type ${ex.type}">${ex.type === 'primary' ? 'FOCO' : 'SECUNDARIO'}</span>
       </div>
       ${showTopSet ? this.topSetHtml(ts, index) : (ts && tsBlockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${tsBlockReason}) — top set desativado hoje. Segue so o treino normal.</div>` : '')}
-      <div class="exercise-scheme bar-toggle" data-breakdown="bb-scheme-${index}">
-        ${ex.planned.sets}x${ex.planned.reps} @ ${ex.planned.percentage}% = <strong>${ex.planned.weight}kg</strong>
-        <span class="bar-toggle-icon" id="icon-scheme-${index}">▼</span>
-      </div>
-      <div class="bar-breakdown open" id="bb-scheme-${index}">
-        <div class="bar-breakdown-inner">${bbHtml}</div>
-      </div>
-      ${cargaRealHtml}
-      ${showSuper ? this.superMetaHtml(sm, index) : (blockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${blockReason}) — super meta desativada hoje. Registra o treino normal.</div>` : '')}
-      <div class="sets-tracker">
-        ${Array(ex.planned.sets).fill(0).map((_,i) => {
-          const isFocus = showSuper && i === sm.focusSetIndex;
-          return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Set ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
-        }).join('')}
-      </div>
-      <div class="sets-count" id="sets-count-${index}">0/${ex.planned.sets} sets</div>`;
+      <div class="work-set-group">
+        ${renderExerciseSeriesOverview(ex, showTopSet)}
+        <div class="exercise-scheme bar-toggle" data-breakdown="bb-scheme-${index}">
+          ${ex.planned.sets}×${ex.planned.reps} @ ${ex.planned.percentage}% = <strong>${ex.planned.weight}kg</strong>
+          <span class="bar-toggle-icon" id="icon-scheme-${index}">▼</span>
+        </div>
+        <div class="bar-breakdown open" id="bb-scheme-${index}">
+          <div class="bar-breakdown-inner">${bbHtml}</div>
+        </div>
+        ${cargaRealHtml}
+        ${showSuper ? this.superMetaHtml(sm, index) : (blockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${blockReason}) — super meta desativada hoje. Registra o treino normal.</div>` : '')}
+        <div class="sets-tracker">
+          ${Array(ex.planned.sets).fill(0).map((_,i) => {
+            const isFocus = showSuper && i === sm.focusSetIndex;
+            return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Série ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
+          }).join('')}
+        </div>
+        <div class="sets-count" id="sets-count-${index}">0/${ex.planned.sets} séries de trabalho concluídas</div>
+      </div>`;
     container.appendChild(div);
 
     // Listeners
@@ -2342,8 +2400,8 @@ const App = {
   topSetHtml(ts, index) {
     return `
       <div class="super-meta-card top-set-card" id="ts-card-${index}">
-        <div class="sm-header">🎯 TOP SET · antes das séries</div>
-        <div class="sm-mode">1X/SEMANA · PERTO DA FALHA</div>
+        <div class="sm-header">🎯 ${formatTopSetPrescription(ts)}</div>
+        <div class="sm-mode">1 SÉRIE · ANTES DAS SÉRIES DE TRABALHO</div>
         <div class="sm-row">
           <span class="sm-label">Peso</span>
           <button class="sm-step" data-ts="${index}" data-delta="-2.5">−</button>
@@ -2628,7 +2686,7 @@ const App = {
     const indices = Array.from(completed).map(b => parseInt(b.dataset.set));
     this.currentWorkout.exercises[exIdx].actual.setsCompleted = indices.length;
     this.currentWorkout.exercises[exIdx].actual.completedSetIndices = indices;
-    document.getElementById(`sets-count-${exIdx}`).textContent = `${indices.length}/${this.currentWorkout.exercises[exIdx].planned.sets} sets`;
+    document.getElementById(`sets-count-${exIdx}`).textContent = `${indices.length}/${this.currentWorkout.exercises[exIdx].planned.sets} séries de trabalho concluídas`;
     this.persistWorkout();
   },
 
@@ -2767,7 +2825,7 @@ const App = {
           if (btn) btn.classList.add('completed');
         });
         const el = document.getElementById(`sets-count-${i}`);
-        if (el) el.textContent = `${ex.actual.setsCompleted}/${ex.planned.sets} sets`;
+        if (el) el.textContent = `${ex.actual.setsCompleted}/${ex.planned.sets} séries de trabalho concluídas`;
       }
     });
     if (w.accessories) {
