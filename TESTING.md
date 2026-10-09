@@ -157,3 +157,11 @@ git diff --check
 ```
 
 Critério E2E Android: **BLOCKED** enquanto nenhum dispositivo ADB estiver conectado. A validação Node da camada de dados passou; a inspeção visual no aparelho continua separada.
+
+---
+
+## Alvos de corrida temporários — W41/2026
+
+A home exibe somente durante a semana ISO 41 (05–11/10/2026) os alvos restantes autorizados: Z2 47 min 33 s e Z3 44 min 48 s. O card identifica W41 e informa que esses números temporários não substituem o piso genérico por sessão. Ele não contém atividade executada/completada nem KPIs pessoais; o overlay não altera o contrato gerado nem `BLOCO_DES694`.
+
+A validade é verificada por data local e ano ISO, com remoção programada após a meia-noite seguinte ao domingo e nova verificação ao voltar do background. `node tests/bloco1.test.js` cobre a janela, início/fim, expiração e não reaparecimento em W41 de outro ano; `node tests/recalibragem.test.js` cobre regressão da lógica de força.

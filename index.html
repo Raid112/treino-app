@@ -191,6 +191,21 @@ body > * { position: relative; z-index: 1; }
 }
 .week-summary-lifts strong { color: var(--text-primary); font-weight: 600; }
 
+/* Alvos publicos e temporarios da corrida (nao confundem com o piso do bloco). */
+.running-week-target {
+  margin: -4px 0 18px; padding: 14px 16px;
+  background: rgba(79,209,165,0.08); border: 1px solid rgba(79,209,165,0.30);
+  border-radius: var(--radius-md); box-shadow: var(--glass-shadow);
+}
+.running-week-target-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.running-week-target-title { font:700 11px var(--font-display); letter-spacing:1px; color:var(--neon-green); text-transform:uppercase; }
+.running-week-target-week { font:700 11px var(--font-display); color:var(--text-primary); }
+.running-week-target-sessions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+.running-week-target-session { display:flex; flex-direction:column; gap:3px; }
+.running-week-target-zone { font:700 11px var(--font-display); color:var(--text-muted); }
+.running-week-target-duration { font:700 16px var(--font-display); color:var(--text-primary); }
+.running-week-target-note { margin-top:9px; font-size:10px; line-height:1.4; color:var(--text-muted); }
+
 /* === DIET PLAN === */
 .diet-plan-card {
   background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
@@ -836,6 +851,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
     </div>
     <div id="readiness-tile" class="readiness-tile" style="display:none;"></div>
     <div id="week-summary" class="week-summary"></div>
+    <div id="running-week-targets"></div>
     <div id="diet-plan"></div>
     <div id="session-picker" class="session-picker"></div>
     <div id="sync-status" class="sync-status"></div>
@@ -1184,6 +1200,88 @@ function resolveRunDuration(input, existing = null) {
   if (Number.isFinite(value) && value > 0) return value;
   const previous = Number(existing);
   return Number.isFinite(previous) && previous > 0 ? previous : null;
+}
+
+// Overlay operacional publico e nao recorrente: alvos restantes apenas para a
+// semana ISO 41 de 2026. Nao e contrato gerado nem inclui atividade executada.
+const CURRENT_WEEK_RUNNING_TARGETS = Object.freeze({
+  isoYear: 2026,
+  isoWeek: 41,
+  startsOn: '2026-10-05',
+  endsOn: '2026-10-11',
+  z2Seconds: 2853,
+  z3Seconds: 2688
+});
+
+function getLocalDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getIsoWeekParts(date) {
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const weekday = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - weekday);
+  const year = utcDate.getUTCFullYear();
+  const yearStart = Date.UTC(year, 0, 1);
+  const week = Math.ceil(((utcDate.getTime() - yearStart) / 86400000 + 1) / 7);
+  return { year, week };
+}
+
+function formatRunningTargetDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds ? `${minutes} min ${remainingSeconds} s` : `${minutes} min`;
+}
+
+function renderCurrentWeekRunningTargets(now = new Date()) {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) return '';
+  const target = CURRENT_WEEK_RUNNING_TARGETS;
+  const dateKey = getLocalDateKey(now);
+  const isoWeek = getIsoWeekParts(now);
+  if (dateKey < target.startsOn || dateKey > target.endsOn
+      || isoWeek.year !== target.isoYear || isoWeek.week !== target.isoWeek) return '';
+
+  return `<section class="running-week-target" aria-label="Alvos restantes de corrida da semana ISO 41">
+    <div class="running-week-target-header">
+      <span class="running-week-target-title">Alvos restantes · corrida</span>
+      <span class="running-week-target-week">W41</span>
+    </div>
+    <div class="running-week-target-sessions">
+      <div class="running-week-target-session"><span class="running-week-target-zone">Z2</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.z2Seconds)}</strong></div>
+      <div class="running-week-target-session"><span class="running-week-target-zone">Z3</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.z3Seconds)}</strong></div>
+    </div>
+    <p class="running-week-target-note">05–11 out 2026 · Alvos temporários desta semana; não substituem o piso genérico por sessão.</p>
+  </section>`;
+}
+
+let currentWeekRunningTargetsExpiryTimer = null;
+function refreshCurrentWeekRunningTargets(now = new Date()) {
+  const element = document.getElementById('running-week-targets');
+  if (!element) return;
+  if (currentWeekRunningTargetsExpiryTimer !== null) {
+    clearTimeout(currentWeekRunningTargetsExpiryTimer);
+    currentWeekRunningTargetsExpiryTimer = null;
+  }
+  element.innerHTML = renderCurrentWeekRunningTargets(now);
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) return;
+
+  const target = CURRENT_WEEK_RUNNING_TARGETS;
+  const dateKey = getLocalDateKey(now);
+  const isoWeek = getIsoWeekParts(now);
+  if (dateKey < target.startsOn || dateKey > target.endsOn
+      || isoWeek.year !== target.isoYear || isoWeek.week !== target.isoWeek) return;
+  const [year, month, day] = target.endsOn.split('-').map(Number);
+  const expiresAt = new Date(year, month - 1, day + 1).getTime();
+  const delay = expiresAt - now.getTime();
+  if (delay > 0) {
+    currentWeekRunningTargetsExpiryTimer = setTimeout(() => {
+      currentWeekRunningTargetsExpiryTimer = null;
+      refreshCurrentWeekRunningTargets(new Date());
+    }, delay);
+  }
 }
 
 // 4 dias de barra + 3 de corrida + acessorios (divisao antiga, restaurada a
@@ -1951,10 +2049,11 @@ const App = {
       btnSync.textContent = 'Sincronizar agora';
       this.showSettings(); // reflete status + config atualizado
     });
-    // Refresh readiness quando app volta do background
+    // Refresh alvo temporario de W41 e readiness quando o app volta do background.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.currentScreen() === 'home') {
-        this.fetchReadiness();
+      if (document.visibilityState === 'visible') {
+        refreshCurrentWeekRunningTargets();
+        if (this.currentScreen() === 'home') this.fetchReadiness();
       }
     });
   },
@@ -2158,6 +2257,7 @@ const App = {
         <span><strong>${config.oneRM.deadlift}</strong> DL</span>
       </div>`;
 
+    refreshCurrentWeekRunningTargets();
     this.renderDietPlan(week, config);
 
     // Session cards
