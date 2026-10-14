@@ -162,6 +162,6 @@ Critério E2E Android: **BLOCKED** enquanto nenhum dispositivo ADB estiver conec
 
 ## Alvos de corrida temporários — W41/2026
 
-A home exibe somente durante a semana ISO 41 (05–11/10/2026) os alvos restantes autorizados: Z2 47 min 33 s e Z3 44 min 48 s. O card identifica W41 e informa que esses números temporários não substituem o piso genérico por sessão. Ele não contém atividade executada/completada nem KPIs pessoais; o overlay não altera o contrato gerado nem `BLOCO_DES694`.
+A home exibe somente durante a semana ISO 41 (05–11/10/2026) um espelho agregado do contrato vigente: volume-alvo 144,4 min e mínimo de conclusão 130 min. Como a prescrição é sem datas e não foi reconciliada com os slots diários do PWA, o card não divide o alvo por sessão/dia/zona, não calcula saldo restante e não representa execução.
 
-A validade é verificada por data local e ano ISO, com remoção programada após a meia-noite seguinte ao domingo e nova verificação ao voltar do background. `node tests/bloco1.test.js` cobre a janela, início/fim, expiração e não reaparecimento em W41 de outro ano; `node tests/recalibragem.test.js` cobre regressão da lógica de força.
+A validade é verificada por data local e ano ISO, com remoção programada após a meia-noite seguinte ao domingo e nova verificação ao voltar do background. O cache do service worker é `treino-v21`. `node tests/bloco1.test.js` cobre os números agregados, ausência de mapeamento de zona/sessão, janela, expiração e não reaparecimento em W41 de outro ano; `node tests/recalibragem.test.js` cobre regressão da lógica de força. A inspeção visual Android continua separada e pendente.

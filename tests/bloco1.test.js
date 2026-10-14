@@ -60,41 +60,40 @@ const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         formatTopSetPrescription, renderExerciseSeriesOverview } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 
-// Os alvos temporarios sao publicos somente durante W41/2026 e carregam apenas
-// as duas duracoes autorizadas — sem ledger de atividade nem KPIs pessoais.
+// O card temporario W41 espelha apenas o contrato agregado; nao mapeia dias, sessoes nem zonas.
 ok(typeof renderCurrentWeekRunningTargets === 'function' && CURRENT_WEEK_RUNNING_TARGETS,
    'helper de alvos publicos temporarios esta disponivel');
 if (typeof renderCurrentWeekRunningTargets === 'function' && CURRENT_WEEK_RUNNING_TARGETS) {
   const localDate = day => new Date(2026, 9, day, 12);
   const w41Start = renderCurrentWeekRunningTargets(localDate(5));
   ok(w41Start.includes('W41') && w41Start.includes('05–11 out 2026')
-      && w41Start.includes('Z2') && w41Start.includes('47 min 33 s')
-      && w41Start.includes('Z3') && w41Start.includes('44 min 48 s'),
-     'W41 exibe explicitamente as duracoes restantes de Z2 e Z3');
+      && w41Start.includes('Alvo semanal') && w41Start.includes('144 min 24 s')
+      && w41Start.toLowerCase().includes('mínimo') && w41Start.includes('130 min'),
+     'W41 exibe somente o alvo agregado e o mínimo do contrato');
+  ok(!/Z2|Z3|S1|S2|S3|restantes|saldo/i.test(w41Start),
+     'card nao atribui zonas/sessoes nem alega saldo de execucao');
   ok(renderCurrentWeekRunningTargets(localDate(11)).includes('W41'),
      'alvos continuam visiveis ate domingo 11/10/2026');
-  ok(renderCurrentWeekRunningTargets(new Date(2026, 9, 4, 12)) === ''
-      && renderCurrentWeekRunningTargets(new Date(2026, 9, 12, 0, 0, 1)) === '',
+  ok(renderCurrentWeekRunningTargets(localDate(12)) === ''
+      && renderCurrentWeekRunningTargets(new Date(2026, 9, 4, 12)) === '',
      'alvos ficam ocultos fora da janela W41 e expiram apos domingo');
   ok(renderCurrentWeekRunningTargets(new Date(2027, 9, 11, 12)) === '',
      'alvos nao reaparecem na W41 de outro ano');
-  const allowedTargetFields = ['endsOn', 'isoWeek', 'isoYear', 'startsOn', 'z2Seconds', 'z3Seconds'];
+  const allowedTargetFields = ['completionThresholdSeconds', 'endsOn', 'isoWeek', 'isoYear', 'startsOn', 'weeklyTargetSeconds'];
   ok(JSON.stringify(Object.keys(CURRENT_WEEK_RUNNING_TARGETS).sort()) === JSON.stringify(allowedTargetFields),
-     'dados publicos contem apenas semana, validade e alvos Z2/Z3 autorizados');
+     'dados publicos contem somente janela e alvos semanais agregados');
   ok(CURRENT_WEEK_RUNNING_TARGETS.isoYear === 2026 && CURRENT_WEEK_RUNNING_TARGETS.isoWeek === 41
       && CURRENT_WEEK_RUNNING_TARGETS.startsOn === '2026-10-05'
       && CURRENT_WEEK_RUNNING_TARGETS.endsOn === '2026-10-11'
-      && CURRENT_WEEK_RUNNING_TARGETS.z2Seconds === 2853
-      && CURRENT_WEEK_RUNNING_TARGETS.z3Seconds === 2688,
-     'overlay e exatamente W41, 05–11/10, com as duracoes aprovadas');
+      && CURRENT_WEEK_RUNNING_TARGETS.weeklyTargetSeconds === 8664
+      && CURRENT_WEEK_RUNNING_TARGETS.completionThresholdSeconds === 7800,
+     'overlay corresponde a W41: 144.4 min de alvo e minimo 130 min');
   ok(html.includes('<div id="running-week-targets"></div>')
       && src.includes('refreshCurrentWeekRunningTargets();'),
      'home integra o card e atualiza/remove a exibicao ao retornar do background');
-  ok(!w41Start.includes('kg') && !w41Start.includes('LB')
-      && !/atividade|conclu[ií]d|executad|volume realizado/i.test(w41Start),
-     'card de alvos nao expoe atividade executada nem KPIs pessoais');
+  ok(!JSON.stringify(CURRENT_WEEK_RUNNING_TARGETS).match(/activity|completed|weight|kpi|zone|session/i),
+     'card de alvos nao expoe execucao nem dados pessoais');
 }
-
 // A tela deve deixar o top set visualmente distinto das séries de trabalho e
 // contar ambos no volume prescrito, sem mutar os dados do treino.
 const setUiCfg = { oneRM: { squat: 140, bench: 100, deadlift: 180 }, oneRMHistory: [], currentWeek: 2, cycleId: 'test-cycle' };

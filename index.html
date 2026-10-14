@@ -200,8 +200,8 @@ body > * { position: relative; z-index: 1; }
 .running-week-target-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
 .running-week-target-title { font:700 11px var(--font-display); letter-spacing:1px; color:var(--neon-green); text-transform:uppercase; }
 .running-week-target-week { font:700 11px var(--font-display); color:var(--text-primary); }
-.running-week-target-sessions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-.running-week-target-session { display:flex; flex-direction:column; gap:3px; }
+.running-week-target-overview { display:grid; grid-template-columns:1fr 1fr; align-items:end; gap:14px; margin-top:10px; }
+.running-week-target-metric { display:flex; flex-direction:column; gap:3px; }
 .running-week-target-zone { font:700 11px var(--font-display); color:var(--text-muted); }
 .running-week-target-duration { font:700 16px var(--font-display); color:var(--text-primary); }
 .running-week-target-note { margin-top:9px; font-size:10px; line-height:1.4; color:var(--text-muted); }
@@ -1202,15 +1202,15 @@ function resolveRunDuration(input, existing = null) {
   return Number.isFinite(previous) && previous > 0 ? previous : null;
 }
 
-// Overlay operacional publico e nao recorrente: alvos restantes apenas para a
-// semana ISO 41 de 2026. Nao e contrato gerado nem inclui atividade executada.
+// Espelho publico e temporario apenas do alvo agregado W41. Nao mapeia
+// sessoes, dias ou zonas, e nao calcula saldo de execucao.
 const CURRENT_WEEK_RUNNING_TARGETS = Object.freeze({
   isoYear: 2026,
   isoWeek: 41,
   startsOn: '2026-10-05',
   endsOn: '2026-10-11',
-  z2Seconds: 2853,
-  z3Seconds: 2688
+  weeklyTargetSeconds: 8664,
+  completionThresholdSeconds: 7800
 });
 
 function getLocalDateKey(date) {
@@ -1244,16 +1244,16 @@ function renderCurrentWeekRunningTargets(now = new Date()) {
   if (dateKey < target.startsOn || dateKey > target.endsOn
       || isoWeek.year !== target.isoYear || isoWeek.week !== target.isoWeek) return '';
 
-  return `<section class="running-week-target" aria-label="Alvos restantes de corrida da semana ISO 41">
+  return `<section class="running-week-target" aria-label="Alvos semanais de corrida da semana ISO 41">
     <div class="running-week-target-header">
-      <span class="running-week-target-title">Alvos restantes · corrida</span>
+      <span class="running-week-target-title">Alvo semanal · corrida</span>
       <span class="running-week-target-week">W41</span>
     </div>
-    <div class="running-week-target-sessions">
-      <div class="running-week-target-session"><span class="running-week-target-zone">Z2</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.z2Seconds)}</strong></div>
-      <div class="running-week-target-session"><span class="running-week-target-zone">Z3</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.z3Seconds)}</strong></div>
+    <div class="running-week-target-overview">
+      <div class="running-week-target-metric"><span class="running-week-target-zone">Volume-alvo</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.weeklyTargetSeconds)}</strong></div>
+      <div class="running-week-target-metric"><span class="running-week-target-zone">Mínimo de conclusão</span><strong class="running-week-target-duration">${formatRunningTargetDuration(target.completionThresholdSeconds)}</strong></div>
     </div>
-    <p class="running-week-target-note">05–11 out 2026 · Alvos temporários desta semana; não substituem o piso genérico por sessão.</p>
+    <p class="running-week-target-note">05–11 out 2026 · O contrato não define dias de treino.</p>
   </section>`;
 }
 
