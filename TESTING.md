@@ -2,7 +2,7 @@
 
 > Doc vivo. Atualizado a cada rodada de teste. Não fechar a sessão enquanto houver caso ❌ ou ⏳.
 
-Última atualização: 2026-09-08
+Última atualização: 2026-10-15
 App: `index.html` (single-file, vanilla JS + localStorage)
 Servidor de teste: `python3 -m http.server 8123` → `http://localhost:8123/index.html`
 Ferramenta de teste: Node.js para lógica; UI Android ainda pendente.
@@ -164,4 +164,14 @@ Critério E2E Android: **BLOCKED** enquanto nenhum dispositivo ADB estiver conec
 
 A home exibe somente durante a semana ISO 41 (05–11/10/2026) um espelho agregado do contrato vigente: volume-alvo 144,4 min e mínimo de conclusão 130 min. Como a prescrição é sem datas e não foi reconciliada com os slots diários do PWA, o card não divide o alvo por sessão/dia/zona, não calcula saldo restante e não representa execução.
 
-A validade é verificada por data local e ano ISO, com remoção programada após a meia-noite seguinte ao domingo e nova verificação ao voltar do background. O cache do service worker é `treino-v21`. `node tests/bloco1.test.js` cobre os números agregados, ausência de mapeamento de zona/sessão, janela, expiração e não reaparecimento em W41 de outro ano; `node tests/recalibragem.test.js` cobre regressão da lógica de força. A inspeção visual Android continua separada e pendente.
+A validade é verificada por data local e ano ISO, com remoção programada após a meia-noite seguinte ao domingo e nova verificação ao voltar do background. Na rodada W41, o cache do service worker era `treino-v21`; o deploy da DES-735 avança para `treino-v22`. `node tests/bloco1.test.js` cobre os números agregados, ausência de mapeamento de zona/sessão, janela, expiração e não reaparecimento em W41 de outro ano; `node tests/recalibragem.test.js` cobre regressão da lógica de força. A inspeção visual Android continua separada e pendente.
+
+## Prescrição diária de corrida — DES-735 (15/10/2026)
+
+- D1 (agachamento): 30 min Z2 (FC ≤ 150), conforme decisão explícita do Caio.
+- D2 (terra): mantém a sessão de qualidade Z3 (FC ≤ 162).
+- D4 (Long Run): permanece Z2 (FC ≤ 150), mas a duração continua pendente da review; não usar o piso `long_minimo_min` como se fosse o total Z2 semanal.
+- Auditoria read-only dos artefatos vivos/históricos: a review de 05/10 prescreve 3 sessões, 158,8–166,1 min no total e 1 sessão Z3, com as demais em Z2, mas não publica o total exato de minutos Z2 nem a duração da sessão Z3. O contrato W41 contém 44,8/44,8/54,8 min com datas nulas e sem campos `zona`/`nome`; o total 144,4 também diverge da faixa da review. A review de 12/10 e o contrato W42 repetem a falta do split estruturado. Não é seguro derivar o total Z2 de `vol_alvo` nem mapear slots undated por posição.
+- Campo/produtor necessário para fechar D4: o gerador do contrato/review deve expor `z2_total_min` por semana, ou atribuições tipadas por sessão (zona/papel + duração) com o total Z2 reproduzível; para deload, a prescrição da própria semana precisa seguir essa mesma cadeia. Não alterar KpiMaster nesta tarefa.
+- Quando o treino em andamento é retomado, o PWA atualiza apenas os alvos de corrida do bloco B2 e persiste a migração, preservando execução registrada; mantém a exceção livre de 5K da W6 e não reinterpreta ciclos anteriores.
+- `node tests/bloco1.test.js` cobre W2/D1, W2/D2, W2/D4, a ausência de alvo/timer inventado, os rótulos/resumos e a migração de treinos salvos; `node tests/recalibragem.test.js` cobre regressão de força. A inspeção visual publicada continua a ser verificada separadamente.

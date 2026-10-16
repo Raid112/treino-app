@@ -45,8 +45,12 @@ globalThis.localStorage = {
 };
 const sandbox = {};
 try {
-  new Function('globalThis', dataLayer + ';globalThis.__x = {BLOCO_DES694, WEEK_DATA, ' +
-    'DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, runTargetLabel, ' +
+  new Function('globalThis', dataLayer + ';globalThis.__x = {' +
+    'BLOCO_DES694, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, ' +
+    'getRunSummaryStatus: typeof getRunSummaryStatus === "function" ? getRunSummaryStatus : null, ' +
+    'hasRunDuration: typeof hasRunDuration === "function" ? hasRunDuration : null, ' +
+    'refreshInProgressRunTarget: typeof refreshInProgressRunTarget === "function" ? refreshInProgressRunTarget : null, ' +
+    'runLabel, runTargetFor, runTargetLabel, ' +
     'renderCurrentWeekRunningTargets: typeof renderCurrentWeekRunningTargets === "function" ? renderCurrentWeekRunningTargets : null, ' +
     'CURRENT_WEEK_RUNNING_TARGETS: typeof CURRENT_WEEK_RUNNING_TARGETS === "undefined" ? null : CURRENT_WEEK_RUNNING_TARGETS, ' +
     'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup, ' +
@@ -54,11 +58,14 @@ try {
     'renderExerciseSeriesOverview: typeof renderExerciseSeriesOverview === "function" ? renderExerciseSeriesOverview : null};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
-        Workout, Storage, getAccSets, runTargetLabel,
+        Workout, Storage, getAccSets, getRunSummaryStatus, hasRunDuration,
+        refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel,
         renderCurrentWeekRunningTargets, CURRENT_WEEK_RUNNING_TARGETS,
         getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
         formatTopSetPrescription, renderExerciseSeriesOverview } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
+ok(/const saved = Storage\.getInProgress\(\);\s*if \(saved\) \{\s*if \(refreshInProgressRunTarget\(saved\)\) Storage\.saveInProgress\(saved\);/.test(src),
+   'boot migra e persiste alvos de corrida de treino salvo do bloco ativo');
 
 // O card temporario W41 espelha apenas o contrato agregado; nao mapeia dias, sessoes nem zonas.
 ok(typeof renderCurrentWeekRunningTargets === 'function' && CURRENT_WEEK_RUNNING_TARGETS,
@@ -254,8 +261,9 @@ ok(erros === 0, `generateWorkout em ${B.semanas * DAY_DEFS.length} combinacoes `
 const w6 = Workout.generateWorkout({ ...cfg, currentWeek: 6 }, 4);
 ok(w6.running && w6.running.target.zone === '5K Teste', 'W6 D4 = teste de saida (5K)');
 const w1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 4);
-ok(w1.running.target.zone === 'Z2' && w1.running.target.min === B.corrida.sessaoMinimaMin,
-   `W1 D4 = piso ${B.corrida.sessaoMinimaMin} min Z2`);
+ok(w1.running.target.zone === 'Z2' && w1.running.target.min === null
+   && w1.running.target.minEhPiso === false,
+   'W1 D4 Long Run mantém Z2 sem duplicar alvo de duração');
 ok(getAccSets(4) === -1 && getAccSets(1) === 0, 'getAccSets: -1 no deload, 0 na base');
 
 const w6Run = Workout.generateWorkout({ ...cfg, currentWeek: 6 }, 4);
@@ -264,6 +272,13 @@ ok(w6Run.running.target.min === null, 'W6 5K continua sem meta de minutos');
 ok(runTargetLabel(w6Run.running.target) === '5K · tempo livre', 'W6 5K nao renderiza minutos null');
 ok(getRunTimerTargetSeconds(w6Run.running.target) === 0, 'timer do W6 5K nao multiplica minutos null');
 ok(getRunTimerTargetSeconds({ min: 20 }) === 1200, 'timer normal converte minutos em segundos');
+ok(typeof hasRunDuration === 'function', 'helper de duração registrada está disponível para teste');
+if (typeof hasRunDuration === 'function') {
+  ok(!hasRunDuration(null) && !hasRunDuration(undefined) && !hasRunDuration('') && !hasRunDuration(0),
+     'duração ausente ou não positiva não conta como corrida registrada');
+  ok(hasRunDuration(31.5) && hasRunDuration('31.5'),
+     'duração positiva numérica ou textual é reconhecida');
+}
 ok(resolveRunDuration('34.5', null) === 34.5, 'duracao real digitada e preservada');
 
 // D2 (28/09/2026, divisao restaurada) carrega a unica sessao de qualidade da semana: Z3, FC <= 162.
@@ -275,6 +290,110 @@ ok(w1d2.exercises[0] && w1d2.exercises[0].lift === 'deadlift' && w1d2.exercises[
 const w1d1 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 1);
 ok(w1d1.running.target.zone === 'Z2' && w1d1.running.target.fcCap === B.corrida.fcCap,
    'D1 continua Z2 (so D2 e qualidade)');
+const w2d1 = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 1);
+ok(w2d1.running && w2d1.running.target.min === 30
+   && w2d1.running.target.minEhPiso === false
+   && w2d1.running.target.zone === 'Z2' && w2d1.running.target.fcCap === B.corrida.fcCap,
+   `W2 D1 Squat prescreve 30 min Z2/FC ≤ ${B.corrida.fcCap}`);
+ok(runLabel(DAY_DEFS[0], WEEK_DATA[2]) === '30min Z2 · FC ≤ 150',
+   'cartão W2 D1 mostra 30 min Z2 sem alterar o alvo global de sessão');
+const w2d2Quality = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 2);
+ok(w2d2Quality.running && w2d2Quality.running.target.min === B.corrida.sessaoMinimaMin
+   && w2d2Quality.running.target.zone === 'Z3' && w2d2Quality.running.target.fcCap === 162,
+   'W2 D2 mantém a qualidade Z3/162 no deadlift');
+const w2d4 = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 4);
+ok(w2d4.running && w2d4.running.target.zone === 'Z2'
+   && w2d4.running.target.fcCap === B.corrida.fcCap,
+   'W2 D4 Long Run permanece Z2/FC ≤ 150');
+ok(w2d4.running && w2d4.running.target.min === null
+   && w2d4.running.target.minEhPiso === false,
+   'W2 D4 não inventa alvo de duração enquanto o contrato não é lido pelo app');
+ok(runLabel(DAY_DEFS[3], WEEK_DATA[2]).includes('duração pendente da review'),
+   'card W2 D4 sinaliza que a duração do Long Run depende do contrato');
+ok(runTargetLabel(w2d4.running.target) === 'Duração pendente da review'
+   && getRunTimerTargetSeconds(w2d4.running.target) === 0,
+   'W2 D4 não mostra nem inicia contagem regressiva com duração inventada');
+ok(typeof getRunSummaryStatus === 'function', 'helper do resumo da corrida está disponível para teste');
+if (typeof getRunSummaryStatus === 'function') {
+  const d4SemTempo = getRunSummaryStatus(w2d4.running.target, null);
+  const d4ComTempo = getRunSummaryStatus(w2d4.running.target, 38.2);
+  const d1Concluida = getRunSummaryStatus(w2d1.running.target, 30);
+  const w6Teste = getRunSummaryStatus(w6Run.running.target, 32.5);
+  const w6SemTempo = getRunSummaryStatus(w6Run.running.target, null);
+  ok(d4SemTempo.planLabel === 'Duração pendente da review'
+     && d4SemTempo.actualLabel === 'tempo não informado' && !d4SemTempo.completed,
+     'resumo W2 D4 não inventa 0 min nem marca corrida sem registro como concluída');
+  ok(d4ComTempo.actualLabel === '38.2min · sem verificação'
+     && d4ComTempo.statusClass === '' && !d4ComTempo.completed,
+     'resumo W2 D4 não declara conclusão sem o piso canônico disponível');
+  ok(d1Concluida.completed && d1Concluida.statusClass === 'ok'
+     && d1Concluida.actualLabel === '30min ✓',
+     'resumo com alvo de duração conhecido compara a corrida ao plano');
+  ok(w6Teste.planLabel === '5K · tempo livre' && w6Teste.completed
+     && w6Teste.statusClass === 'ok' && w6Teste.actualLabel === '32.5min ✓',
+     'W6 preserva o resultado livre do teste 5K com duração registrada');
+  ok(w6SemTempo.actualLabel === 'tempo não informado ⚠' && !w6SemTempo.completed,
+     'W6 5K sem tempo registrado não é marcada como concluída');
+}
+ok(typeof refreshInProgressRunTarget === 'function',
+   'helper de migração do alvo de corrida em treino salvo está disponível');
+if (typeof refreshInProgressRunTarget === 'function') {
+  const staleD1 = {
+    week: 2, dayNum: 1, cycleId: `${B.id}:stale-d1`,
+    running: {
+      target: { min: 20, zone: 'Z2', fcCap: 150, minEhPiso: true, tipo: 'base' },
+      actual: { completed: false, duration: 25, hr: 140, pace: 8.2 },
+      note: 'progresso que deve ser preservado'
+    }
+  };
+  const d1Actual = staleD1.running.actual;
+  ok(refreshInProgressRunTarget(staleD1)
+     && staleD1.running.target.min === 30
+     && staleD1.running.target.minEhPiso === false
+     && staleD1.running.target.zone === 'Z2'
+     && staleD1.running.actual === d1Actual,
+     'W2 D1 salvo migra para 30 min Z2 sem perder execução registrada');
+
+  const staleD2 = {
+    week: 2, dayNum: 2, cycleId: `${B.id}:stale-d2`,
+    running: { target: { min: 20, zone: 'Z2', fcCap: 150, minEhPiso: true, tipo: 'base' },
+      actual: { completed: false, duration: null, hr: null, pace: null } }
+  };
+  ok(refreshInProgressRunTarget(staleD2)
+     && staleD2.running.target.zone === 'Z3' && staleD2.running.target.fcCap === 162,
+     'W2 D2 salvo migra para Z3 no treino de terra');
+
+  const staleD4 = {
+    week: 2, dayNum: 4, cycleId: `${B.id}:stale-d4`,
+    running: { target: { min: 20, zone: 'Z2', fcCap: 150, minEhPiso: true, tipo: 'longa' },
+      actual: { completed: false, duration: 54, hr: 145, pace: 8.1 } }
+  };
+  ok(refreshInProgressRunTarget(staleD4)
+     && staleD4.running.target.min === null
+     && staleD4.running.target.zone === 'Z2'
+     && staleD4.running.actual.duration === 54
+     && !getRunSummaryStatus(staleD4.running.target, staleD4.running.actual.duration).completed,
+     'W2 D4 salvo mantém tempo realizado mas remove alvo Long Run obsoleto');
+
+  const staleW6 = {
+    week: 6, dayNum: 4, cycleId: `${B.id}:stale-w6`,
+    running: { target: { min: 20, zone: 'Z2', fcCap: 150, minEhPiso: true, tipo: 'longa' },
+      actual: { completed: false, duration: null, hr: null, pace: null } }
+  };
+  ok(refreshInProgressRunTarget(staleW6)
+     && staleW6.running.target.zone === '5K Teste'
+     && staleW6.running.target.min === null,
+     'W6 salvo continua reconhecido como teste 5K de tempo livre');
+
+  const otherCycle = {
+    week: 2, dayNum: 4, cycleId: 'B1-legacy:session',
+    running: { target: { min: 20, zone: 'Z2', fcCap: 150, minEhPiso: true, tipo: 'longa' },
+      actual: { completed: false, duration: null, hr: null, pace: null } }
+  };
+  ok(!refreshInProgressRunTarget(otherCycle)
+     && otherCycle.running.target.min === 20,
+     'migração não reinterpreta treino salvo de outro bloco');
+}
 ok(diasForca.length === 4 && B.forca.sessoes[1] === 4,
    `divisao restaurada = 4 dias de barra (bloco amplo p/ ${JSON.stringify(B.forca.sessoes)})`);
 
