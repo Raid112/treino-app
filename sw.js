@@ -1,8 +1,9 @@
-const CACHE_NAME = 'treino-v22';
+const CACHE_NAME = 'treino-v23';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './corrida-plan.json',
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-512.png'
@@ -28,6 +29,25 @@ self.addEventListener('fetch', e => {
   // CF Worker — sempre network, nunca cacheia (dados dinâmicos)
   if (e.request.url.includes('garmin-cf-probe.caiocpagliarani.workers.dev')) {
     e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // O contrato semanal é atualizado sem mudar o HTML. Network-first mantém o
+  // cache offline utilizável, mas permite que a review aprovada chegue ao app.
+  if (new URL(e.request.url).pathname.endsWith('/corrida-plan.json')) {
+    e.respondWith(
+      fetch(e.request).then(async res => {
+        if (res.ok) {
+          try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(e.request, res.clone());
+          } catch (_error) {
+            // Storage/quota failure must not hide a valid network response.
+          }
+        }
+        return res;
+      }).catch(async () => (await caches.match(e.request)) || new Response('', { status: 503 }))
+    );
     return;
   }
 

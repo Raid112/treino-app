@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "status": "pendente",
+  "natureza": "alvo_prescrito",
+  "semana_iso": null,
+  "bloco_id": null,
+  "semana_bloco": null,
+  "fase": null,
+  "approval": null,
+  "source": null,
+  "faixa_volume_aprovada_min": null,
+  "sessoes": [],
+  "totais": null,
+  "regra_long_run": null,
+  "long_minimo_min": 30,
+  "long_minimo_excecao": null,
+  "excecao_deload": {"aplica": false}
+}

@@ -47,25 +47,36 @@ const sandbox = {};
 try {
   new Function('globalThis', dataLayer + ';globalThis.__x = {' +
     'BLOCO_DES694, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES, Workout, Storage, getAccSets, ' +
+    'validateRunningPlanPayload: typeof validateRunningPlanPayload === "function" ? validateRunningPlanPayload : null, ' +
+    'setApprovedRunningPlan: typeof setApprovedRunningPlan === "function" ? setApprovedRunningPlan : null, ' +
     'getRunSummaryStatus: typeof getRunSummaryStatus === "function" ? getRunSummaryStatus : null, ' +
     'hasRunDuration: typeof hasRunDuration === "function" ? hasRunDuration : null, ' +
     'refreshInProgressRunTarget: typeof refreshInProgressRunTarget === "function" ? refreshInProgressRunTarget : null, ' +
     'runLabel, runTargetFor, runTargetLabel, ' +
     'renderCurrentWeekRunningTargets: typeof renderCurrentWeekRunningTargets === "function" ? renderCurrentWeekRunningTargets : null, ' +
     'CURRENT_WEEK_RUNNING_TARGETS: typeof CURRENT_WEEK_RUNNING_TARGETS === "undefined" ? null : CURRENT_WEEK_RUNNING_TARGETS, ' +
-    'getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup, ' +
+    'getRunTimerTargetSeconds, isRunTargetReached: typeof isRunTargetReached === "function" ? isRunTargetReached : null, ' +
+    'getElapsedRunSeconds: typeof getElapsedRunSeconds === "function" ? getElapsedRunSeconds : null, ' +
+    'shouldResumeRunTimer: typeof shouldResumeRunTimer === "function" ? shouldResumeRunTimer : null, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup, ' +
     'formatTopSetPrescription: typeof formatTopSetPrescription === "function" ? formatTopSetPrescription : null, ' +
     'renderExerciseSeriesOverview: typeof renderExerciseSeriesOverview === "function" ? renderExerciseSeriesOverview : null};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
-        Workout, Storage, getAccSets, getRunSummaryStatus, hasRunDuration,
+        Workout, Storage, getAccSets, validateRunningPlanPayload, setApprovedRunningPlan,
+        getRunSummaryStatus, hasRunDuration,
         refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel,
         renderCurrentWeekRunningTargets, CURRENT_WEEK_RUNNING_TARGETS,
-        getRunTimerTargetSeconds, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
+        getRunTimerTargetSeconds, isRunTargetReached, getElapsedRunSeconds, shouldResumeRunTimer, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
         formatTopSetPrescription, renderExerciseSeriesOverview } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 ok(/const saved = Storage\.getInProgress\(\);\s*if \(saved\) \{\s*if \(refreshInProgressRunTarget\(saved\)\) Storage\.saveInProgress\(saved\);/.test(src),
    'boot migra e persiste alvos de corrida de treino salvo do bloco ativo');
+ok(/if \(shouldResumeRunTimer\(saved\.running\)\) this\.startRunTimer\(\)/.test(src),
+   'boot retoma timer de corrida pela marca de início persistida');
+ok(!src.includes('if (!Number.isFinite(w.running.actual.duration) && Number.isFinite(w.running.target.min))'),
+   'finalizar não grava duração prescrita como duração realizada');
+ok(!/:\s*this\.runTimerElapsed\s*;/.test(src),
+   'duração sem timer ativo não reutiliza elapsed antigo de outra corrida');
 
 // O card temporario W41 espelha apenas o contrato agregado; nao mapeia dias, sessoes nem zonas.
 ok(typeof renderCurrentWeekRunningTargets === 'function' && CURRENT_WEEK_RUNNING_TARGETS,
@@ -280,6 +291,17 @@ if (typeof hasRunDuration === 'function') {
      'duração positiva numérica ou textual é reconhecida');
 }
 ok(resolveRunDuration('34.5', null) === 34.5, 'duracao real digitada e preservada');
+ok(typeof shouldResumeRunTimer === 'function'
+   && shouldResumeRunTimer({ timerStartedAt: 10000, actual: { completed: false } }, 70000)
+   && !shouldResumeRunTimer({ timerStartedAt: 80000, actual: { completed: false } }, 70000)
+   && !shouldResumeRunTimer({ timerStartedAt: 10000, actual: { completed: true } }, 70000),
+   'retomada exige timer iniciado, não futuro e ainda não concluído');
+ok(typeof getElapsedRunSeconds === 'function'
+   && getElapsedRunSeconds(10000, 70000) === 60
+   && getElapsedRunSeconds(80000, 70000) === 0,
+   'timer deriva segundos decorridos da marca persistida e rejeita timestamps futuros');
+ok(resolveRunDuration('', null, 90) === 2 && resolveRunDuration('', null, 0) === null,
+   'duração real usa timer decorrido quando existe e permanece null sem evidência');
 
 // D2 (28/09/2026, divisao restaurada) carrega a unica sessao de qualidade da semana: Z3, FC <= 162.
 const w1d2 = Workout.generateWorkout({ ...cfg, currentWeek: 1 }, 2);
@@ -313,7 +335,112 @@ ok(runLabel(DAY_DEFS[3], WEEK_DATA[2]).includes('duração pendente da review'),
 ok(runTargetLabel(w2d4.running.target) === 'Duração pendente da review'
    && getRunTimerTargetSeconds(w2d4.running.target) === 0,
    'W2 D4 não mostra nem inicia contagem regressiva com duração inventada');
-ok(typeof getRunSummaryStatus === 'function', 'helper do resumo da corrida está disponível para teste');
+
+// Payload sintético para validar o consumidor; não é prescrição real nem deve ser publicado.
+const planContractHelpersAvailable = typeof validateRunningPlanPayload === 'function'
+  && typeof setApprovedRunningPlan === 'function';
+ok(planContractHelpersAvailable, 'validador e injetor do contrato aprovado de corrida disponíveis');
+if (planContractHelpersAvailable) {
+  const syntheticRunPlan = {
+    schema_version: 1, status: 'pronto', natureza: 'alvo_prescrito',
+    approval: { state: 'approved', reference: 'synthetic-test-only', approved_at: '2026-10-12T12:00:00-03:00' },
+    source: { review_run_id: 'synthetic-test-only', prep_sha256: 'a'.repeat(64) },
+    semana_iso: '2026-W42',
+    bloco_id: B.id, semana_bloco: 3, fase: 'base',
+    faixa_volume_aprovada_min: [150, 160],
+    sessoes: [
+      { dia_app: 'D1', papel: 'agachamento', zona: 'Z2', min: 30, fc_cap: 150 },
+      { dia_app: 'D2', papel: 'terra', zona: 'Z3', min: 40, fc_cap: 162 },
+      { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 80, fc_cap: 150 }
+    ],
+    totais: { total_semanal_min: 150, total_z2_min: 110, total_z3_min: 40,
+      agachamento_z2_min: 30, long_run_z2_min: 80 },
+    regra_long_run: 'total_z2_min - agachamento_z2_min',
+    long_minimo_min: 30, long_minimo_excecao: null,
+    excecao_deload: { aplica: false }
+  };
+  const planCheck = validateRunningPlanPayload(syntheticRunPlan);
+  ok(planCheck && planCheck.ok, 'contrato sintético válido fecha zonas, dias, soma e regra do Long Run');
+  const wrongSum = structuredClone(syntheticRunPlan);
+  wrongSum.totais.total_z2_min = 111;
+  ok(!validateRunningPlanPayload(wrongSum).ok, 'contrato rejeita total Z2 que não fecha com sessões');
+  const wrongMapping = structuredClone(syntheticRunPlan);
+  wrongMapping.sessoes[1].dia_app = 'D1';
+  ok(!validateRunningPlanPayload(wrongMapping).ok, 'contrato rejeita dia/papel duplicado ou fora do mapa explícito');
+  const unapproved = structuredClone(syntheticRunPlan);
+  unapproved.approval.state = 'pending';
+  ok(!validateRunningPlanPayload(unapproved).ok, 'contrato sem aprovação explícita não fica utilizável');
+  const approvalWithoutZone = structuredClone(syntheticRunPlan);
+  approvalWithoutZone.approval.approved_at = '2026-10-12T12:00:00';
+  ok(!validateRunningPlanPayload(approvalWithoutZone).ok, 'aprovação sem fuso horário é rejeitada');
+  const publicSeed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corrida-plan.json'), 'utf8'));
+  ok(publicSeed.status === 'pendente' && publicSeed.sessoes.length === 0
+     && !validateRunningPlanPayload(publicSeed).ok,
+     'artefato publicado inicial fica pendente e não inventa alvos semanais');
+
+  ok(setApprovedRunningPlan(syntheticRunPlan), 'payload sintético válido aceito pelo leitor do PWA');
+  const planDate = new Date(2026, 9, 12, 12);
+  const planW3d1 = Workout.generateWorkout({ ...cfg, currentWeek: 3 }, 1, planDate);
+  const planW3d2 = Workout.generateWorkout({ ...cfg, currentWeek: 3 }, 2, planDate);
+  const planW3d4 = Workout.generateWorkout({ ...cfg, currentWeek: 3 }, 4, planDate);
+  ok(planW3d1.running.target.min === 30 && planW3d1.running.target.zone === 'Z2'
+     && !planW3d1.running.target.minEhPiso,
+     'consumidor usa D1 Z2 exato do contrato aprovado');
+  ok(planW3d2.running.target.min === 40 && planW3d2.running.target.zone === 'Z3'
+     && planW3d2.running.target.fcCap === 162,
+     'consumidor usa D2 Z3 exato do contrato aprovado');
+  ok(planW3d4.running.target.min === 80 && planW3d4.running.target.zone === 'Z2'
+     && getRunTimerTargetSeconds(planW3d4.running.target) === 4800,
+     'consumidor aplica D4 Long Run Z2 exato e timer correspondente');
+  ok(runLabel(DAY_DEFS[3], WEEK_DATA[3], 3, planDate) === '80min Z2 · FC ≤ 150',
+     'rótulo visível do cartão usa duração/zona do plano aprovado');
+  const staleW3d4 = Workout.generateWorkout({ ...cfg, currentWeek: 3 }, 4, new Date(2026, 9, 19, 12));
+  const wrongWeekW3d4 = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 4, planDate);
+  ok(staleW3d4.running.target.min === null && wrongWeekW3d4.running.target.min === null,
+     'contrato antigo ou de outra semana do bloco não alimenta D4');
+  const wrongPhasePlan = { ...syntheticRunPlan, fase: 'deload' };
+  ok(!validateRunningPlanPayload(wrongPhasePlan).ok,
+     'fase deload não pode ser publicada para semana 3 de base');
+
+  ok(typeof isRunTargetReached === 'function'
+     && isRunTargetReached(4801, 4800.6)
+     && !isRunTargetReached(4800, 4800.6),
+     'timer reconhece o cruzamento de alvo fracionário sem exigir igualdade impossível');
+
+  const syntheticDeload = {
+    ...syntheticRunPlan, semana_iso: '2026-W43', semana_bloco: 4,
+    fase: 'deload', faixa_volume_aprovada_min: null,
+    sessoes: [
+      { dia_app: 'D1', papel: 'agachamento', zona: 'Z2', min: 20, fc_cap: 150 },
+      { dia_app: 'D2', papel: 'terra', zona: 'Z2', min: 25, fc_cap: 150 },
+      { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 30, fc_cap: 150 }
+    ],
+    totais: { total_semanal_min: 75, total_z2_min: 75, total_z3_min: 0,
+      agachamento_z2_min: 20, long_run_z2_min: 30 },
+    regra_long_run: 'seguir_distribuicao_exata_da_review',
+    excecao_deload: { aplica: true, regra: 'seguir_distribuicao_exata_da_review' }
+  };
+  ok(validateRunningPlanPayload(syntheticDeload).ok,
+     'deload sintético valida distribuição explícita sem aplicar a fórmula regular');
+  const blankDeloadException = {
+    ...syntheticDeload,
+    long_minimo_excecao: '   ',
+    sessoes: syntheticDeload.sessoes.map(session => session.dia_app === 'D4'
+      ? { ...session, min: 25 } : session),
+    totais: { total_semanal_min: 70, total_z2_min: 70, total_z3_min: 0,
+      agachamento_z2_min: 20, long_run_z2_min: 25 }
+  };
+  ok(!validateRunningPlanPayload(blankDeloadException).ok,
+     'exceção de deload em branco não libera Long Run abaixo do piso');
+  ok(!validateRunningPlanPayload({ ...syntheticDeload, semana_iso: '2026-W45', semana_bloco: 6 }).ok,
+     'W6 com teste 5K rejeita payload de Long Run incompatível');
+  const deloadDate = new Date(2026, 9, 19, 12);
+  ok(setApprovedRunningPlan(syntheticDeload)
+     && Workout.generateWorkout({ ...cfg, currentWeek: 4 }, 4, deloadDate).running.target.min === 30,
+     'consumidor usa o D4 explícito do deload aprovado da semana 4');
+  setApprovedRunningPlan(null);
+}
+ok(typeof getRunSummaryStatus === 'function', 'helper do resumo da corrida está disponível');
 if (typeof getRunSummaryStatus === 'function') {
   const d4SemTempo = getRunSummaryStatus(w2d4.running.target, null);
   const d4ComTempo = getRunSummaryStatus(w2d4.running.target, 38.2);

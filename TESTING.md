@@ -2,7 +2,7 @@
 
 > Doc vivo. Atualizado a cada rodada de teste. Não fechar a sessão enquanto houver caso ❌ ou ⏳.
 
-Última atualização: 2026-10-15
+Última atualização: 2026-10-16
 App: `index.html` (single-file, vanilla JS + localStorage)
 Servidor de teste: `python3 -m http.server 8123` → `http://localhost:8123/index.html`
 Ferramenta de teste: Node.js para lógica; UI Android ainda pendente.
@@ -172,6 +172,14 @@ A validade é verificada por data local e ano ISO, com remoção programada apó
 - D2 (terra): mantém a sessão de qualidade Z3 (FC ≤ 162).
 - D4 (Long Run): permanece Z2 (FC ≤ 150), mas a duração continua pendente da review; não usar o piso `long_minimo_min` como se fosse o total Z2 semanal.
 - Auditoria read-only dos artefatos vivos/históricos: a review de 05/10 prescreve 3 sessões, 158,8–166,1 min no total e 1 sessão Z3, com as demais em Z2, mas não publica o total exato de minutos Z2 nem a duração da sessão Z3. O contrato W41 contém 44,8/44,8/54,8 min com datas nulas e sem campos `zona`/`nome`; o total 144,4 também diverge da faixa da review. A review de 12/10 e o contrato W42 repetem a falta do split estruturado. Não é seguro derivar o total Z2 de `vol_alvo` nem mapear slots undated por posição.
-- Campo/produtor necessário para fechar D4: o gerador do contrato/review deve expor `z2_total_min` por semana, ou atribuições tipadas por sessão (zona/papel + duração) com o total Z2 reproduzível; para deload, a prescrição da própria semana precisa seguir essa mesma cadeia. Não alterar KpiMaster nesta tarefa.
+- Integração implementada: a review registra `prescricao_corrida` como proposta tipada, o checker valida alvos/somas/zonas e um publicador separado exige aprovação explícita antes de gravar `corrida-plan.json`. O run W42 consultado não contém a proposta: há somente uma faixa de volume total de 158,8–166,1 min, sem duração exata por zona; não foram criados tempos reais nem exportado payload aprovado.
 - Quando o treino em andamento é retomado, o PWA atualiza apenas os alvos de corrida do bloco B2 e persiste a migração, preservando execução registrada; mantém a exceção livre de 5K da W6 e não reinterpreta ciclos anteriores.
-- `node tests/bloco1.test.js` cobre W2/D1, W2/D2, W2/D4, a ausência de alvo/timer inventado, os rótulos/resumos e a migração de treinos salvos; `node tests/recalibragem.test.js` cobre regressão de força. A inspeção visual publicada continua a ser verificada separadamente.
+- `node tests/bloco1.test.js` cobre fase/semana compatíveis, rejeição do W6 5K, alvos por dia, payload sintético, timer fracionário/retomada após reload e ausência de duração observada sem entrada/timer; `node tests/recalibragem.test.js` cobre regressão de força. Os testes do service worker e do monitor Pages ficam abaixo; a inspeção visual publicada continua separada.
+
+## DES-735 — integração review → app (pré-release, 2026-10-16)
+
+- `corrida-plan.json` local começa `pendente`, sem tempos, zonas ou totais semanais. Nenhuma prescrição real foi criada: o run W42 da review ainda não tem o split tipado/aprovado.
+- Testes locais: `node tests/bloco1.test.js` — todos verdes; `node tests/recalibragem.test.js` — 27/27; `node --test tests/running-plan-loader.test.mjs` — 2/2; `node --test tests/sw-corrida-plan.test.mjs` — 4/4; `node --test tests/pages-verifier.test.mjs` — 6/6 com HTTP fixture local; `git diff --check` — limpo.
+- KpiMaster: `uv run --isolated --with pytest --with garminconnect --with python-dotenv --python 3.12 python -m unittest discover -s tests -p 'test_*.py'` — 90 testes passaram. O comando direto com `python3` não encontrou `pytest`/dependências Garmin; a execução isolada com `uv` forneceu as dependências sem alterar o repo.
+- Baseline Pages antes deste release: branch local/remota `master` no SHA `6c6f1a6117e2753bfe98d13ff3a818876cd0f889`; `index.html`, `sw.js` e `manifest.json` responderam HTTP 200 e eram byte-idênticos ao source; `corrida-plan.json` ainda respondeu 404. Nenhum valor de W2 foi publicado.
+- Gate pendente: publicar a mudança de app e confirmar workflow/bytes remotos; em seguida, Caio validar no PWA Android o alvo aprovado, refresh/worker e timer. Não fechar Jira antes dessa evidência.

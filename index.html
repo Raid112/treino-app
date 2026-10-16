@@ -1157,14 +1157,14 @@ function renderExerciseSeriesOverview(ex, topSetEnabled = true) {
   </div>`;
 }
 
-// RUNNING_DATA foi REMOVIDO em 08/09/2026 (DES-694).
-// O volume semanal vem do contrato (loops/corrida/plano.md), gerado toda segunda.
-// O app nao le o split de cada slot; espelha o piso geral do Esqueleto e os
-// ajustes explicitamente aprovados para cada dia. Para Long Run, mantem Z2 e
-// deixa a duracao em aberto em vez de duplicar o long_minimo_min do contrato.
-function runLabel(dayDef, wd) {
+// Contrato derivado e aprovado da LoopReview. O JSON publico contém apenas alvos
+// por dia; sem payload válido/aprovado e da semana ISO/bloco ativo, o app mantém
+// os guardrails do esqueleto e deixa o Long Run sem duração-alvo.
+let APPROVED_RUNNING_PLAN = null;
+
+function runLabel(dayDef, wd, week, now = new Date()) {
   if (wd.specialRun === '5k_test' && dayDef.run === 'longa') return '5K TESTE';
-  const target = runTargetFor(dayDef);
+  const target = runTargetFor(dayDef, wd, week, now);
   if (target.min == null) {
     return `${target.zone} · FC ≤ ${target.fcCap} · duração pendente da review`;
   }
@@ -1172,11 +1172,17 @@ function runLabel(dayDef, wd) {
   return `${prefix}${target.min}min ${target.zone} · FC ≤ ${target.fcCap}`;
 }
 
-function runTargetFor(dayDef, wd = null) {
+function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
   const c = BLOCO_DES694.corrida;
   if (wd && wd.specialRun === '5k_test' && dayDef.run === 'longa') {
     return { min: null, minEhPiso: false, zone: '5K Teste', fcCap: null,
              tipo: dayDef.run };
+  }
+  const approved = getApplicableRunningPlan(week, now);
+  const planned = approved && approved.sessoes.find(session => session.dia_app === `D${dayDef.day}`);
+  if (planned && dayDef.run) {
+    return { min: planned.min, minEhPiso: false, zone: planned.zona,
+             fcCap: planned.fc_cap, tipo: dayDef.run, source: 'review-aprovada' };
   }
   if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
     return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.qualidade.zona,
@@ -1206,11 +1212,31 @@ function getRunTimerTargetSeconds(target) {
   return Number.isFinite(min) && min > 0 ? min * 60 : 0;
 }
 
-function resolveRunDuration(input, existing = null) {
+function isRunTargetReached(elapsedSeconds, targetSeconds) {
+  return Number.isFinite(elapsedSeconds) && Number.isFinite(targetSeconds)
+    && targetSeconds > 0 && elapsedSeconds >= targetSeconds;
+}
+
+function shouldResumeRunTimer(running, now = Date.now()) {
+  if (!running || running.actual?.completed) return false;
+  const start = Number(running.timerStartedAt);
+  return Number.isFinite(start) && start > 0 && Number.isFinite(now) && start <= now;
+}
+
+function getElapsedRunSeconds(startedAt, now = Date.now()) {
+  const start = Number(startedAt);
+  return Number.isFinite(start) && start > 0 && Number.isFinite(now) && now >= start
+    ? Math.floor((now - start) / 1000)
+    : 0;
+}
+
+function resolveRunDuration(input, existing = null, elapsedSeconds = null) {
   const value = Number(input);
   if (Number.isFinite(value) && value > 0) return value;
   const previous = Number(existing);
-  return Number.isFinite(previous) && previous > 0 ? previous : null;
+  if (Number.isFinite(previous) && previous > 0) return previous;
+  const elapsed = Number(elapsedSeconds);
+  return Number.isFinite(elapsed) && elapsed > 0 ? Math.round(elapsed / 60) : null;
 }
 
 function hasRunDuration(duration) {
@@ -1265,6 +1291,151 @@ function getIsoWeekParts(date) {
   const yearStart = Date.UTC(year, 0, 1);
   const week = Math.ceil(((utcDate.getTime() - yearStart) / 86400000 + 1) / 7);
   return { year, week };
+}
+
+function isFinitePositive(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function closeEnough(a, b) {
+  return typeof a === 'number' && typeof b === 'number'
+    && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 0.05;
+}
+
+function validateRunningPlanPayload(plan) {
+  const errors = [];
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return { ok: false, errors: ['payload inválido'] };
+  if (plan.schema_version !== 1 || plan.status !== 'pronto' || plan.natureza !== 'alvo_prescrito') {
+    errors.push('schema/status/natureza inválidos');
+  }
+  if (!plan.approval || plan.approval.state !== 'approved'
+      || typeof plan.approval.reference !== 'string' || !plan.approval.reference.trim()
+      || typeof plan.approval.approved_at !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(plan.approval.approved_at)
+      || !Number.isFinite(Date.parse(plan.approval.approved_at))) {
+    errors.push('aprovação humana explícita ausente');
+  }
+  if (typeof plan.semana_iso !== 'string' || !/^\d{4}-W\d{2}$/.test(plan.semana_iso)) errors.push('semana_iso inválida');
+  if (plan.bloco_id !== BLOCO_DES694.id || !Number.isInteger(plan.semana_bloco)
+      || plan.semana_bloco < 1 || plan.semana_bloco > BLOCO_DES694.semanas) errors.push('bloco/semana do app inválidos');
+  if (!plan.source || typeof plan.source.review_run_id !== 'string' || !plan.source.review_run_id
+      || typeof plan.source.prep_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(plan.source.prep_sha256)) {
+    errors.push('proveniência da review inválida');
+  }
+  if (!['base', 'deload'].includes(plan.fase)) errors.push('fase inválida');
+  const appWeek = WEEK_DATA[Number(plan.semana_bloco)];
+  if (!appWeek) {
+    errors.push('semana fora do cronograma de treino-app');
+  } else {
+    const expectedPhase = appWeek.deload ? 'deload' : 'base';
+    if (plan.fase !== expectedPhase) errors.push('fase não corresponde à semana do bloco no app');
+    if (appWeek.specialRun === '5k_test') errors.push('semana de teste 5K não aceita plano de Long Run');
+  }
+  if (!plan.excecao_deload || typeof plan.excecao_deload !== 'object'
+      || typeof plan.excecao_deload.aplica !== 'boolean') errors.push('excecao_deload ausente/inválida');
+  if (!isFinitePositive(plan.long_minimo_min)) errors.push('long_minimo_min inválido');
+  if (plan.long_minimo_excecao != null && typeof plan.long_minimo_excecao !== 'string') {
+    errors.push('long_minimo_excecao inválida');
+  }
+
+  const sessions = Array.isArray(plan.sessoes) ? plan.sessoes : [];
+  const expected = { D1: 'agachamento', D2: 'terra', D4: 'long_run' };
+  const byDay = new Map();
+  for (const session of sessions) {
+    if (!session || !Object.hasOwn(expected, session.dia_app) || byDay.has(session.dia_app)) {
+      errors.push('dia de corrida ausente, duplicado ou não permitido');
+      continue;
+    }
+    byDay.set(session.dia_app, session);
+    if (session.papel !== expected[session.dia_app]) errors.push(`${session.dia_app}: papel não confere`);
+    if (!isFinitePositive(session.min)) errors.push(`${session.dia_app}: duração exata inválida`);
+    if (!['Z2', 'Z3'].includes(session.zona)) errors.push(`${session.dia_app}: zona explícita ausente`);
+    const expectedCap = session.zona === 'Z2' ? 150 : session.zona === 'Z3' ? 162 : null;
+    if (session.fc_cap !== expectedCap) errors.push(`${session.dia_app}: FC cap não confere com a zona aprovada`);
+  }
+  if (sessions.length !== 3 || ['D1', 'D2', 'D4'].some(day => !byDay.has(day))) {
+    errors.push('a distribuição precisa tipar explicitamente D1, D2 e D4');
+  }
+
+  const d1 = byDay.get('D1'), d2 = byDay.get('D2'), d4 = byDay.get('D4');
+  const hasLongMinimumException = typeof plan.long_minimo_excecao === 'string'
+    && plan.long_minimo_excecao.trim().length > 0;
+  const totals = plan.totais || {};
+  const total = sessions.reduce((sum, s) => sum + (isFinitePositive(s.min) ? s.min : 0), 0);
+  const z2 = sessions.reduce((sum, s) => sum + (s.zona === 'Z2' && isFinitePositive(s.min) ? s.min : 0), 0);
+  const z3 = sessions.reduce((sum, s) => sum + (s.zona === 'Z3' && isFinitePositive(s.min) ? s.min : 0), 0);
+  if (!closeEnough(totals.total_semanal_min, total)
+      || !closeEnough(totals.total_z2_min, z2) || !closeEnough(totals.total_z3_min, z3)) {
+    errors.push('totais semanal/Z2/Z3 não fecham com as sessões');
+  }
+  if (d1 && !closeEnough(totals.agachamento_z2_min, d1.min)
+      || d4 && !closeEnough(totals.long_run_z2_min, d4.min)) {
+    errors.push('totais diários não fecham com D1/D4');
+  }
+
+  if (plan.fase === 'base') {
+    if (d1 && (d1.zona !== 'Z2' || d1.fc_cap !== 150 || !closeEnough(d1.min, 30))) {
+      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150');
+    }
+    if (d2 && (d2.zona !== 'Z3' || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3/FC≤162');
+    if (d4 && d4.zona !== 'Z2') errors.push('semana regular: D4 Long Run deve ser Z2');
+    if (d1 && d4 && !closeEnough(d4.min, totals.total_z2_min - 30)) {
+      errors.push('semana regular: D4 deve ser total Z2 menos 30 min de D1');
+    }
+    const range = plan.faixa_volume_aprovada_min;
+    if (!Array.isArray(range) || range.length !== 2 || !isFinitePositive(range[0])
+        || !isFinitePositive(range[1]) || range[0] > range[1]
+        || total < range[0] - 0.05 || total > range[1] + 0.05) {
+      errors.push('volume total fora da faixa aprovada pela review');
+    }
+    if (plan.regra_long_run !== 'total_z2_min - agachamento_z2_min') errors.push('regra regular do Long Run ausente');
+    const floor = Number.isFinite(plan.long_minimo_min) ? plan.long_minimo_min : 30;
+    if (d4 && d4.min < floor && !hasLongMinimumException) errors.push('Long Run abaixo do piso sem exceção explícita');
+    if ((plan.excecao_deload || {}).aplica === true) errors.push('exceção de deload em semana regular');
+  } else if (plan.fase === 'deload') {
+    if (!d1 || d1.zona !== 'Z2' || !d2 || !d4 || d4.zona !== 'Z2') {
+      errors.push('deload exige alocação explícita de agachamento/Long Run Z2 e D2');
+    }
+    if (plan.regra_long_run !== 'seguir_distribuicao_exata_da_review'
+        || (plan.excecao_deload || {}).aplica !== true) errors.push('deload sem regra/distribuição explícita');
+    const floor = Number.isFinite(plan.long_minimo_min) ? plan.long_minimo_min : 30;
+    if (d4 && d4.min < floor && !hasLongMinimumException) errors.push('Long Run de deload abaixo do piso sem exceção explícita');
+    if (plan.faixa_volume_aprovada_min !== null) errors.push('deload não deve herdar a faixa regular');
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+function setApprovedRunningPlan(plan) {
+  const result = validateRunningPlanPayload(plan);
+  APPROVED_RUNNING_PLAN = result.ok ? plan : null;
+  return result.ok;
+}
+
+function getApplicableRunningPlan(week, now = new Date()) {
+  const plan = APPROVED_RUNNING_PLAN;
+  if (!plan || !Number.isInteger(Number(week)) || !(now instanceof Date) || !Number.isFinite(now.getTime())) return null;
+  const iso = getIsoWeekParts(now);
+  const currentIsoWeek = `${iso.year}-W${String(iso.week).padStart(2, '0')}`;
+  if (plan.semana_iso !== currentIsoWeek || plan.bloco_id !== BLOCO_DES694.id
+      || plan.semana_bloco !== Number(week)) return null;
+  return plan;
+}
+
+async function loadApprovedRunningPlan(fetcher = globalThis.fetch) {
+  if (typeof fetcher !== 'function') return setApprovedRunningPlan(null);
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 1500) : null;
+  try {
+    const response = await fetcher('./corrida-plan.json', {
+      cache: 'no-store', ...(controller ? { signal: controller.signal } : {})
+    });
+    if (!response || !response.ok) return setApprovedRunningPlan(null);
+    return setApprovedRunningPlan(await response.json());
+  } catch (_error) {
+    return setApprovedRunningPlan(null);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
 }
 
 function formatRunningTargetDuration(seconds) {
@@ -1350,7 +1521,7 @@ function refreshInProgressRunTarget(workout) {
   const wd = WEEK_DATA[Number(workout.week)];
   if (!dayDef || !dayDef.run || !wd) return false;
 
-  const target = runTargetFor(dayDef, wd);
+  const target = runTargetFor(dayDef, wd, workout.week);
   const previous = workout.running.target || {};
   const changed = ['min', 'minEhPiso', 'zone', 'fcCap', 'tipo']
     .some(key => previous[key] !== target[key]);
@@ -1822,7 +1993,7 @@ const Workout = {
     ).join('<br>');
   },
 
-  generateWorkout(config, dayNum) {
+  generateWorkout(config, dayNum, now = new Date()) {
     const dayDef = DAY_DEFS[dayNum - 1];
     const week = config.currentWeek;
     const wd = WEEK_DATA[week];
@@ -1885,9 +2056,10 @@ const Workout = {
       });
     }
 
-    // Running — alvo por sessao vem do Esqueleto; o volume da semana e do contrato.
+    // Running — usa a alocação semanal aprovada quando presente; caso contrário,
+    // mantém os guardrails do esqueleto sem inventar duração para o Long Run.
     if (dayDef.type === 'running' || dayDef.type === 'combined') {
-      const t = runTargetFor(dayDef, wd);
+      const t = runTargetFor(dayDef, wd, week, now);
       const teste = wd.specialRun === '5k_test' && dayDef.run === 'longa';
       base.running = {
         target: t,
@@ -1992,9 +2164,11 @@ const App = {
   runTimerInterval: null,
   runTimerElapsed: 0,
   runTimerTarget: 0,
+  runTimerTargetNotified: false,
 
-  init() {
+  async init() {
     Storage.checkVersion();
+    await loadApprovedRunningPlan();
     this.setupEventListeners();
 
     const saved = Storage.getInProgress();
@@ -2004,6 +2178,7 @@ const App = {
       this.renderWorkoutScreen();
       this.restoreWorkoutState();
       this.showScreen('workout');
+      if (shouldResumeRunTimer(saved.running)) this.startRunTimer();
     } else {
       const last = Storage.getActiveScreen();
       if (last === 'history') this.showHistory();
@@ -2327,9 +2502,9 @@ const App = {
       } else if (dd.type === 'combined' && wd.p && !wd.special) {
         const s = dd.strength.level === 'primary' ? wd.p : wd.sec;
         const w = Workout.calcWeight(config.oneRM[dd.strength.lift], s.pct);
-        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runLabel(dd, wd)}</strong>`;
+        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runLabel(dd, wd, week)}</strong>`;
       } else if (dd.type === 'running') {
-        scheme = `<strong class="green">${runLabel(dd, wd)}</strong>`;
+        scheme = `<strong class="green">${runLabel(dd, wd, week)}</strong>`;
       } else if (dd.type === 'accessories') {
         scheme = `<strong class="amber">7 exercicios</strong>`;
       } else if (wd.special === '1rm_test') {
@@ -2910,27 +3085,46 @@ const App = {
     }, 3000);
   },
 
-  // Run timer (count-up)
+  // Run timer (count-up, driven by persisted wall-clock start to survive throttling/reload)
   startRunTimer() {
     const w = this.currentWorkout;
-    if (!w || !w.running) return;
+    if (!w || !w.running || w.running.actual?.completed) return;
+    this.stopRunTimer();
+    const now = Date.now();
+    const storedStart = Number(w.running.timerStartedAt);
+    const resuming = Number.isFinite(storedStart) && storedStart > 0 && storedStart <= now;
+    if (!resuming) {
+      w.running.timerStartedAt = now;
+      w.running.timerTargetNotified = false;
+    }
     this.runTimerTarget = getRunTimerTargetSeconds(w.running.target);
-    this.runTimerElapsed = 0;
+    this.runTimerElapsed = getElapsedRunSeconds(w.running.timerStartedAt, now);
+    this.runTimerTargetNotified = w.running.timerTargetNotified === true;
     const startBtn = document.getElementById('btn-start-run');
     const display = document.getElementById('run-timer-display');
     if (startBtn) startBtn.style.display = 'none';
     if (display) display.style.display = '';
     this.updateRunTimerDisplay();
+    this.persistWorkout();
     this.runTimerInterval = setInterval(() => {
-      this.runTimerElapsed++;
+      this.runTimerElapsed = getElapsedRunSeconds(w.running.timerStartedAt);
       this.updateRunTimerDisplay();
-      if (this.runTimerTarget > 0 && this.runTimerElapsed === this.runTimerTarget) {
+      if (this.runTimerTarget > 0 && !this.runTimerTargetNotified
+          && isRunTargetReached(this.runTimerElapsed, this.runTimerTarget)) {
+        this.runTimerTargetNotified = true;
+        w.running.timerTargetNotified = true;
+        this.persistWorkout();
         if (navigator.vibrate) navigator.vibrate([200,100,200,100,200]);
         const circle = document.getElementById('run-timer-circle');
         if (circle) circle.classList.add('target-reached');
         setTimeout(() => { if (circle) circle.classList.remove('target-reached'); }, 3000);
       }
     }, 1000);
+  },
+
+  stopRunTimer() {
+    if (this.runTimerInterval) clearInterval(this.runTimerInterval);
+    this.runTimerInterval = null;
   },
 
   updateRunTimerDisplay() {
@@ -2949,16 +3143,25 @@ const App = {
   },
 
   completeRun() {
-    if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
-    const entered = resolveRunDuration(document.getElementById('run-actual-time')?.value, null);
-    const elapsed = this.runTimerElapsed > 0 ? Math.round(this.runTimerElapsed / 60) : null;
-    const durMin = entered ?? elapsed;
-    this.currentWorkout.running.actual.completed = true;
-    this.currentWorkout.running.actual.duration = durMin;
+    const running = this.currentWorkout && this.currentWorkout.running;
+    if (!running) return;
+    const elapsedSeconds = running.timerStartedAt
+      ? getElapsedRunSeconds(running.timerStartedAt)
+      : null;
+    const durMin = resolveRunDuration(
+      document.getElementById('run-actual-time')?.value,
+      running.actual.duration,
+      elapsedSeconds
+    );
+    this.stopRunTimer();
+    delete running.timerStartedAt;
+    delete running.timerTargetNotified;
+    running.actual.completed = hasRunDuration(durMin);
+    running.actual.duration = durMin;
     const timeInput = document.getElementById('run-actual-time');
-    if (timeInput) timeInput.value = durMin;
-    this.currentWorkout.running.actual.hr = parseFloat(document.getElementById('run-actual-hr')?.value) || null;
-    this.currentWorkout.running.actual.pace = document.getElementById('run-actual-pace')?.value || null;
+    if (timeInput) timeInput.value = durMin ?? '';
+    running.actual.hr = parseFloat(document.getElementById('run-actual-hr')?.value) || null;
+    running.actual.pace = document.getElementById('run-actual-pace')?.value || null;
     this.persistWorkout();
   },
 
@@ -3029,14 +3232,19 @@ const App = {
       if (sm && !sm.blocked) ex.actual.weight = sm.weight;
     });
     if (w.running) {
-      w.running.actual.duration = resolveRunDuration(document.getElementById('run-actual-time')?.value, w.running.actual.duration);
+      const elapsedSeconds = w.running.timerStartedAt
+        ? getElapsedRunSeconds(w.running.timerStartedAt)
+        : null;
+      w.running.actual.duration = resolveRunDuration(
+        document.getElementById('run-actual-time')?.value,
+        w.running.actual.duration,
+        elapsedSeconds
+      );
       w.running.actual.hr = parseFloat(document.getElementById('run-actual-hr')?.value) || null;
       w.running.actual.pace = document.getElementById('run-actual-pace')?.value || null;
-      // Finalizar = feito: corrida sem tempo informado assume o alvo.
-      if (!Number.isFinite(w.running.actual.duration) && Number.isFinite(w.running.target.min)) {
-        w.running.actual.duration = w.running.target.min;
-      }
-      w.running.actual.completed = true;
+      w.running.actual.completed = hasRunDuration(w.running.actual.duration);
+      delete w.running.timerStartedAt;
+      delete w.running.timerTargetNotified;
     }
 
     // Finalizar = treino feito. Sem marcacao de series, assume execucao conforme o planejado
@@ -3099,7 +3307,7 @@ const App = {
     Sync.commit().then(() => this.refreshSyncIndicator()); // PUT do estado no jsonbin (fim do treino; falha fica pendente)
     this.currentWorkout = null;
     this.stopTimer();
-    if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
+    this.stopRunTimer();
     this.showScreen('home');
     this.updateHomeScreen();
     this.showWorkoutSummaryModal(w, recalibs, config);
@@ -3227,7 +3435,7 @@ const App = {
     this.currentWorkout = null;
     Storage.clearInProgress();
     this.stopTimer();
-    if (this.runTimerInterval) { clearInterval(this.runTimerInterval); this.runTimerInterval = null; }
+    this.stopRunTimer();
     this.showScreen('home');
     this.updateHomeScreen();
   },
