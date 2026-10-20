@@ -19,9 +19,9 @@ out=$(node --test tests/*.test.mjs 2>&1) || bloqueia "testes .mjs: $(grep -m3 'n
 
 sha=$(git rev-parse HEAD)
 git fetch -q origin master
-# Versão no topo do app = CACHE_NAME do sw.js. App mudou sem subir a versão = celular não sabe que atualizou.
+# VersÃ£o no topo do app = CACHE_NAME do sw.js. App mudou sem subir a versÃ£o = celular nÃ£o sabe que atualizou.
 if ! git diff --quiet origin/master -- index.html corrida-plan.json manifest.json && git diff --quiet origin/master -- sw.js; then
-  bloqueia "app mudou mas a versão não subiu (CACHE_NAME no sw.js + app-version no index.html)"
+  bloqueia "app mudou mas a versÃ£o nÃ£o subiu (CACHE_NAME no sw.js + app-version no index.html)"
 fi
 if [ "$(git rev-parse origin/master)" != "$sha" ]; then
   git push -q origin HEAD:master 2>&1 || bloqueia "push recusado"
@@ -35,7 +35,7 @@ for _ in $(seq 1 30); do
 done
 [ -n "$run" ] || bloqueia "workflow release nÃ£o apareceu para $sha"
 if ! "$GH" run watch "$run" --exit-status --interval 15 >/dev/null 2>&1; then
-  motivo=$("$GH" run view "$run" --log-failed 2>/dev/null | grep -E 'SMOKE FALHOU|^.*- |FAIL|Error' | sed 's/^.*Z //' | head -4 | tr '\n' ' ')
+  motivo=$("$GH" run view "$run" --log-failed 2>/dev/null | grep -E 'SMOKE FALHOU| - [a-zS]|^FAIL|##\[error\]' | sed 's/^.*Z //' | head -4 | tr '\n' ' ')
   bloqueia "gate do Actions reprovou (run $run): ${motivo:-ver gh run view $run}"
 fi
 
