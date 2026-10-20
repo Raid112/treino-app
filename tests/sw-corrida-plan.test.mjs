@@ -10,6 +10,7 @@ function loadWorker(fetchImpl, seed = []) {
   const listeners = new Map();
   const cacheEntries = new Map(seed);
   let precacheAssets = [];
+  const deletedCaches = [];
   const cache = {
     addAll: async assets => { precacheAssets = [...assets]; },
     put: async (request, response) => cacheEntries.set(request.url, response),
@@ -17,8 +18,8 @@ function loadWorker(fetchImpl, seed = []) {
   const caches = {
     open: async () => cache,
     match: async request => cacheEntries.get(typeof request === 'string' ? request : request.url),
-    keys: async () => ['treino-v22', 'treino-v23'],
-    delete: async () => true,
+    keys: async () => ['treino-v23', 'treino-v24'],
+    delete: async key => { deletedCaches.push(key); return true; },
   };
   const self = {
     addEventListener: (name, handler) => listeners.set(name, handler),
@@ -26,7 +27,7 @@ function loadWorker(fetchImpl, seed = []) {
     clients: { claim: () => Promise.resolve() },
   };
   vm.runInNewContext(source, { self, caches, URL, Request, Response, fetch: fetchImpl }, { filename: 'sw.js' });
-  return { listeners, cacheEntries, precacheAssets: () => precacheAssets };
+  return { listeners, cacheEntries, deletedCaches, precacheAssets: () => precacheAssets };
 }
 
 function dispatchFetch(worker, url = planUrl) {
@@ -45,6 +46,14 @@ test('precache includes corrida-plan.json for first-install offline behavior', a
   worker.listeners.get('install')({ waitUntil: promise => { waitPromise = promise; } });
   await waitPromise;
   assert.ok(worker.precacheAssets().includes('./corrida-plan.json'));
+});
+
+test('activation deletes stale cache and keeps current treino-v24', async () => {
+  const worker = loadWorker(async () => new Response('{}'));
+  let activationPromise;
+  worker.listeners.get('activate')({ waitUntil: promise => { activationPromise = promise; } });
+  await activationPromise;
+  assert.deepEqual(worker.deletedCaches, ['treino-v23']);
 });
 
 test('network-first refresh returns and caches the latest approved-plan bytes', async () => {

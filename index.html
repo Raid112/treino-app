@@ -395,6 +395,20 @@ body > * { position: relative; z-index: 1; }
 }
 @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 8px rgba(214,219,226,0.15); } 50% { box-shadow: 0 0 16px rgba(214,219,226,0.3); } }
 .sets-count { font-size: 13px; color: var(--text-muted); font-family: var(--font-display); font-weight: 400; letter-spacing: 0.5px; }
+.force-ladder-card { margin: 12px 0; padding: 14px; border: 1px solid rgba(224,180,65,0.3); border-radius: var(--radius-md); background: rgba(224,180,65,0.045); }
+.force-ladder-heading { color: var(--neon-amber); font: 700 11px var(--font-display); letter-spacing: 1.2px; margin-bottom: 7px; }
+.force-ladder-note, .force-ladder-blocked, .force-ladder-status { color: var(--text-muted); font-size: 12px; line-height: 1.45; margin: 5px 0; }
+.force-ladder-blocked, .force-ladder-status.stopped { color: #ff7d7d; font-weight: 700; }
+.force-ladder-pain-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; color: var(--text-primary); font-size: 12px; }
+.force-ladder-pain, .force-ladder-weight, .force-ladder-rpe { width: 84px; padding: 9px 7px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); background: rgba(255,255,255,0.04); color: var(--text-primary); text-align: center; font: 600 15px var(--font-display); }
+.force-ladder-steps { display: grid; gap: 8px; margin: 12px 0; }
+.force-ladder-step { display: grid; grid-template-columns: minmax(110px,1fr) auto auto auto; align-items: end; gap: 8px; padding: 9px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.035); }
+.force-ladder-step label { display: grid; gap: 4px; color: var(--text-muted); font-size: 10px; }
+.force-ladder-prescription { align-self: center; color: var(--text-primary); font: 700 12px var(--font-display); }
+.force-ladder-done-label { display: flex !important; align-items: center; min-height: 40px; color: var(--text-primary) !important; }
+.force-ladder-done { width: 18px; height: 18px; accent-color: var(--neon-green); }
+.force-ladder-status { min-height: 18px; }
+@media (max-width: 500px) { .force-ladder-step { grid-template-columns: 1fr 1fr; } .force-ladder-prescription { grid-column: 1 / -1; } }
 
 /* === RUNNING CARD === */
 .running-card {
@@ -982,12 +996,9 @@ const BLOCO_DES694 = {
 // Temas reusam chaves existentes de EXECUTION_PROFILES de proposito: tema novo
 // quebraria EXECUTION_PROFILES[w.theme].label e sumiria com a super meta.
 // S1 volta a ser Hipertrofia (peso um pouco mais alto, sem top set) — e o motivo
-// do reset de bloco. S2/S3/S5 (semanas de forca) levam top set perto da falha nos
-// TRES lifts, nao so 1: o lift "da vez" (rotacao terra->supino->agacho, herdada do
-// B1) faz 3 reps @RPE9 (~90% 1RM) e os outros dois fazem 3 reps @RPE8 (~85% 1RM),
-// cada um no dia em que ELE e primary. `topSets` e um array (WEEK_DATA[w].topSets),
-// nao mais o campo singular `topSet` do B1 — ver Workout.initTopSet. Semana 4
-// (deload) e 6 (taper/teste 5K) nao levam top set nenhum.
+// do reset de bloco. S2/S3 seguem top sets nos tres lifts; S5 preserva os top sets
+// de bench/terra em RPE8 e substitui somente o agachamento primario por escadinha.
+// Semana 4 (deload) e 6 (taper/teste 5K) nao levam top set.
 const WEEK_DATA = {
   1: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:3,r:8,pct:68}, sec:{s:3,r:10,pct:60} },
   2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72},
@@ -1003,9 +1014,11 @@ const WEEK_DATA = {
          { lift:'squat',    reps:3, rpe:8, pct:85 }
        ] },
   4: { theme:'Deload', block:'Deload',      bn:1, p:{s:2,r:5,pct:62}, sec:{s:2,r:5,pct:58}, deload:true },
-  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76},
+  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76}, rpeCap:8,
+       forceLadder:{ lift:'squat', loadPolicy:'no_increase', maxRpe:8,
+         steps:[{reps:5,rpeTarget:6},{reps:4,rpeTarget:7},{reps:3,rpeTarget:8}],
+         replaces:{sets:3,reps:4,totalReps:12} },
        topSets:[
-         { lift:'squat',    reps:3, rpe:9, pct:90 },   // da vez
          { lift:'bench',    reps:3, rpe:8, pct:85 },
          { lift:'deadlift', reps:3, rpe:8, pct:85 }
        ] },
@@ -1014,125 +1027,382 @@ const WEEK_DATA = {
        nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
 };
 
-// Plano alimentar operacional espelhado de loops/dieta/contrato.md. O contrato
-// continua sendo o dono da fase; este objeto só organiza a execução no app.
+// O contrato canônico segue v9d; o teste de 7 dias é um override operacional
+// explícito e restrito à W4, sem transformar a hipótese em nova versão do contrato.
 const DIET_PLAN = {
-  version: '2026-09-30-v9c',
-  // B2 (30/09/2026): contrato v9c de loops/dieta/contrato.md. Os alvos diários da v9b foram mantidos.
+  version: '2026-10-19-trial-1600',
+  contract: 'loops/dieta/contrato.md',
+  baseContractVersion: 'v9d',
   weeks: { 1:'cut', 2:'cut', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
-  // Override operacional da review de S2 (06/10/2026); não altera o contrato-base
-  // nem as semanas seguintes. As porções/refeições permanecem sem rateio inventado.
-  weekOverrides: {
-    2: {
-      label: 'Cut · S2 (ajuste operacional)',
-      totalCalories: 1700,
-      calorieRule: '1700 kcal/dia (alvo operacional aprovado para S2; exceção semanal ao alvo-base v9c de 1850).',
-      note: 'Ajuste operacional restrito à S2; carboidrato fecha as calorias.'
-    }
+  base: {
+    label: 'Cut v9d', totalCalories: 1700,
+    calorieRule: '1.700 kcal/dia (contrato-base v9d; ativo fora da janela temporária).',
+    protein_g: 205, fat_g: 60, carbohydrateTarget_g: null,
+    carbohydrateApproximate: false,
+    note: 'Carboidrato fecha as calorias. Refeição livre: 1 por semana, limitada a um prato controlado. Manter 30 min semanais de Z2 em bicicleta/ergométrica, fora do volume de corrida. A auditoria D8 continua durante o cut, sem ser pré-condição.'
+  },
+  trial: {
+    id: 'LR4-2026-10-19-1001', week: 4,
+    startsOn: '2026-10-19', endsOn: '2026-10-25', totalCalories: 1600,
+    calorieRule: '≈1.600 kcal/dia (teste de 7 dias, 19–25/10/2026).',
+    label: 'Cut · teste 1.600 kcal (7 dias)',
+    protein_g: 205, fat_g: 60, carbohydrateTarget_g: 60,
+    carbohydrateApproximate: true,
+    macroReconciliationNote: 'A proposta por refeição aprovada em 19/10/2026 informou divergência aproximada de ~20 kcal entre kcal e macros da tabela; o app não recalcula nem afirma fechamento exato.',
+    note: 'Teste temporário aprovado para 19–25/10/2026, sobre o contrato-base v9d (1.700 kcal/dia). A energia e os macros são alvos aproximados, não um cardápio calculado: a composição da carne/mistura e os alimentos/porções do pré e pós não foram especificados. Não afirmar que o dia fecha exatamente em 1.600 kcal ou nos três macros.'
   },
   weekChanges: {
-    1: { kind:'change', text:'Semana 1 (B2): cut v9c, 1850 kcal/dia, P ≥205 g, G ≥60 g. Guia pré/pós: 25–35 g de proteína por refeição; carbo pesado e flexível entre elas. Refeição livre 1×/semana, moderada.' },
-    2: { kind:'change', text:'Semana 2 (B2/S2): alvo operacional de 1.700 kcal/dia, P ≥205 g e G ≥60 g; carboidrato fecha o total. Acrescentar +30 min de Z2 em bicicleta/ergométrica, como atividade separada e fora do volume de corrida.' },
-    3: { kind:'same', text:'Semana 3: segue a escada do contrato conforme a média de peso.' },
-    4: { kind:'same', text:'Semana 4: segue a escada do contrato conforme a média de peso.' },
-    5: { kind:'same', text:'Semana 5: segue a escada do contrato conforme a média de peso.' },
-    6: { kind:'same', text:'Semana 6: segue a escada do contrato conforme a média de peso.' }
-  },
-  phases: {
-    cut: {
-      label: 'Cut v9c', totalCalories: 1850,
-      calorieRule: '1850 kcal/dia (contrato v9c, 30/09)', protein_g: 205, fat_g: 60,
-      note: 'Carboidrato fecha as calorias; alvo 0,5–0,8 kg/semana. Escada em loops/dieta/contrato.md.'
+    4: {
+      kind: 'change',
+      text: 'Teste de 7 dias (19–25/10/2026): alvo aproximado de 1.600 kcal/dia; P ≥205 g, G ≥60 g e C ≈60 g. É um override temporário do app sobre o contrato-base v9d de 1.700 kcal/dia. Fora da janela de teste, volta ao alvo base. Manter 30 min de Z2 em bicicleta/ergométrica na semana, separada e fora do volume de corrida.'
     }
   },
-  meals: [
+  baseMeals: [
     { id:'cafe_manha', label:'Café da manhã',
       quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
       uncertainty:'Kcal e macros dependem do teor de gordura e do rótulo do leite; o app não estima a composição.',
-      note:'Leite em volume explícito; medir em copo graduado.' },
+      note:'Mantido sem mudanças; leite em volume explícito.' },
     { id:'almoco', label:'Almoço',
       quantity:'400 g de mistura + 400 g de vegetais',
-      uncertainty:'A composição da “mistura” não foi especificada; kcal e macros não podem ser confirmados só pelo peso total.',
-      note:'Pesar os 400 g da mistura e os 400 g de vegetais já prontos.' },
+      uncertainty:'A composição e o preparo da mistura não foram especificados; kcal e macros não podem ser confirmados só pelo peso total.',
+      note:'Porção-base informada; não inferir nutrientes da mistura.' },
     { id:'cafe_tarde', label:'Café da tarde',
-      quantity:'2 copos; 30 g de leite em pó por copo = 60 g/dia',
-      uncertainty:'Kcal e macros variam por marca e se o leite em pó é integral ou desnatado; conferir o rótulo.',
-      note:'Não usar 60 g por copo sem intenção; pesar o pó e seguir o rótulo.' },
+      quantity:'Café preto + 200 ml de leite Italac semidesnatado',
+      labelNutrition:{ kcal:80, protein_g:6.2, fat_g:2, carbohydrate_g:9.2 },
+      uncertainty:'Valores informados do rótulo para os 200 ml de leite; não representam a refeição completa nem estimam outros alimentos.',
+      note:'Rótulo do leite informado: 80 kcal, P 6,2 g, G 2 g, C 9,2 g.' },
     { id:'pre_treino', label:'Pré-treino',
       proteinRange_g:[25,35],
-      quantity:'Guia: 25–35 g de proteína total na refeição; somar a proteína dos alimentos pelos rótulos.',
-      note:'Pesar os alimentos; distribuir o carbo conforme horário e tolerância, dentro do total diário.' },
+      quantity:'Guia: 25–35 g de proteína; carbo pesado e distribuído entre pré e pós conforme horário/tolerância, dentro do total diário. Alimentos e porções não especificados.',
+      note:'Kcal e carbo por refeição não definidos; conferir rótulos.' },
     { id:'pos_treino', label:'Pós-treino',
       proteinRange_g:[25,35],
-      quantity:'Guia: 25–35 g de proteína total na refeição; somar a proteína dos alimentos pelos rótulos.',
-      note:'Carbo pesado; pode deslocar parte do pré para o pós sem passar o total diário.' }
+      quantity:'Guia: 25–35 g de proteína; carbo pesado e distribuído entre pré e pós conforme horário/tolerância, dentro do total diário. Alimentos e porções não especificados.',
+      note:'Pesar tudo o que for consumido à noite; sem composição inferida.' }
+  ],
+  trialMeals: [
+    { id:'cafe_manha', label:'Café da manhã',
+      quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
+      uncertainty:'Kcal e macros dependem do teor de gordura e do rótulo do leite; o app não estima a composição.',
+      note:'Mantido sem mudanças; leite em volume explícito.' },
+    { id:'almoco', label:'Almoço',
+      quantity:'350 g de carne/mistura + 400 g de vegetais',
+      uncertainty:'A composição e o preparo da carne/mistura não foram especificados; kcal e macros não podem ser confirmados só pelo peso total.',
+      note:'Pesar as porções prontas; não inferir nutrientes da mistura.' },
+    { id:'cafe_tarde', label:'Café da tarde',
+      quantity:'Café preto + 200 ml de leite Italac semidesnatado',
+      labelNutrition:{ kcal:80, protein_g:6.2, fat_g:2, carbohydrate_g:9.2 },
+      uncertainty:'Valores informados do rótulo para os 200 ml de leite; não representam a refeição completa nem estimam outros alimentos.',
+      note:'Rótulo do leite informado: 80 kcal, P 6,2 g, G 2 g, C 9,2 g.' },
+    { id:'pre_treino', label:'Pré-treino',
+      proteinTarget_g:30, carbohydrateTarget_g:10,
+      quantity:'Alvo aproximado: 30 g de proteína e 10 g de carboidratos; alimentos e porções não especificados. Conferir rótulos.',
+      note:'Escolha alimentar permanece em aberto; não há kcal por refeição.' },
+    { id:'pos_treino', label:'Pós-treino',
+      proteinTarget_g:30, carbohydrateTarget_g:10,
+      quantity:'Alvo aproximado: 30 g de proteína e 10 g de carboidratos; alimentos e porções não especificados. Conferir rótulos.',
+      note:'Escolha alimentar permanece em aberto; pesar o que for consumido, sem inferir uma composição.' }
   ]
 };
 
-function getDietWeekPlan(week) {
+function getDietWeekPlan(week, _config = {}, now = new Date()) {
   const requestedWeek = Number(week);
   const safeWeek = Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek) ? requestedWeek : 1;
-  const phaseName = DIET_PLAN.weeks[safeWeek] || DIET_PLAN.weeks[1];
-  const phase = DIET_PLAN.phases[phaseName];
-  const override = DIET_PLAN.weekOverrides[safeWeek] || {};
-  const totalCalories = override.totalCalories ?? phase.totalCalories ?? null;
-  const caloriesForCarbsAtFloors = phaseName === 'cut' && totalCalories != null
-    ? totalCalories - (phase.protein_g * 4 + phase.fat_g * 9)
-    : null;
-  const meals = DIET_PLAN.meals.map(meal => ({ ...meal }));
+  const trial = DIET_PLAN.trial;
+  const today = now instanceof Date && Number.isFinite(now.getTime())
+    ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    : '';
+  const validBlockWeek = Number.isInteger(requestedWeek)
+    && Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek);
+  const trialWeek = validBlockWeek && requestedWeek === trial.week;
+  const trialActive = trialWeek && today >= trial.startsOn && today <= trial.endsOn;
+  const trialExpired = trialWeek && today > trial.endsOn;
+  const plan = trialActive ? trial : DIET_PLAN.base;
+  const meals = trialActive ? DIET_PLAN.trialMeals : DIET_PLAN.baseMeals;
   return {
-    version: DIET_PLAN.version, week: safeWeek, phase: phaseName,
-    label: override.label ?? phase.label,
-    totalCalories, calorieRule: override.calorieRule ?? phase.calorieRule,
-    protein_g: phase.protein_g, fat_g: phase.fat_g,
-    note: override.note ?? phase.note, meals,
-    caloriesForCarbsAtFloors,
-    carbsAtFloors_g: caloriesForCarbsAtFloors == null ? null : caloriesForCarbsAtFloors / 4
+    version: trialActive ? DIET_PLAN.version : DIET_PLAN.baseContractVersion,
+    contract: DIET_PLAN.contract, week: safeWeek, phase: 'cut',
+    label: trialActive ? trial.label : (trialExpired ? `${DIET_PLAN.base.label} · pós-teste` : DIET_PLAN.base.label),
+    totalCalories: plan.totalCalories, approximateCalories: trialActive,
+    calorieRule: plan.calorieRule,
+    protein_g: plan.protein_g, fat_g: plan.fat_g,
+    carbohydrateTarget_g: plan.carbohydrateTarget_g,
+    carbohydrateApproximate: plan.carbohydrateApproximate,
+    note: trialExpired
+      ? `Teste temporário encerrado em ${trial.endsOn}; volta ao contrato-base v9d de 1.700 kcal/dia até nova revisão. ${DIET_PLAN.base.note}`
+      : plan.note,
+    meals: meals.map(meal => ({
+      ...meal, labelNutrition: meal.labelNutrition ? { ...meal.labelNutrition } : null,
+      proteinRange_g: meal.proteinRange_g ? [...meal.proteinRange_g] : null
+    })),
+    trialId: trial.id, trialStart: trial.startsOn, trialEnd: trial.endsOn,
+    trialActive, trialExpired,
+    macroReconciliationNote: trialActive ? trial.macroReconciliationNote : null,
+    caloriesForCarbsAtFloors: null, carbsAtFloors_g: null
   };
 }
 
 function renderDietPlanMarkup(plan) {
-  const total = plan.totalCalories == null ? plan.calorieRule : `${plan.totalCalories} kcal/dia`;
-  const cutWarning = plan.phase === 'cut' && plan.totalCalories == null
-    ? '<div class="diet-plan-warning">O contrato não define um alvo calórico para esta fase; alinhe o plano antes de estimar kcal por refeição.</div>'
+  const total = plan.totalCalories == null
+    ? 'Sem alvo calórico aprovado'
+    : `${plan.approximateCalories ? '≈' : ''}${Number(plan.totalCalories).toLocaleString('pt-BR')} kcal/dia`;
+  const dailyTargets = [];
+  if (Number.isFinite(plan.protein_g)) dailyTargets.push(`P ≥${plan.protein_g} g/dia`);
+  if (Number.isFinite(plan.fat_g)) dailyTargets.push(`G ≥${plan.fat_g} g/dia`);
+  if (Number.isFinite(plan.carbohydrateTarget_g)) {
+    dailyTargets.push(`${plan.carbohydrateApproximate ? 'C ≈' : 'C '}${plan.carbohydrateTarget_g} g/dia`);
+  }
+  const dailyTargetsHtml = dailyTargets.length
+    ? `<div class="diet-plan-meta">${dailyTargets.join(' · ')}</div>`
     : '';
-  const weekChange = DIET_PLAN.weekChanges[plan.week];
+  const waitingHtml = plan.phase === 'awaiting_review'
+    ? `<div class="diet-plan-warning">${plan.calorieRule}</div>`
+    : '';
+  const expiredHtml = plan.trialExpired
+    ? `<div class="diet-plan-warning">Teste de 1.600 kcal encerrado; aplica-se novamente o contrato-base v9d.</div>`
+    : '';
+  const weekChange = plan.trialActive ? DIET_PLAN.weekChanges[DIET_PLAN.trial.week] : null;
   const changeHtml = weekChange
-    ? `<div class="${weekChange.kind === 'change' ? 'diet-plan-change' : 'diet-plan-no-change'}">${weekChange.text}</div>`
+    ? `<div class="diet-plan-change">${weekChange.text}</div>`
     : '';
-  const macroBudget = plan.phase === 'cut' && plan.caloriesForCarbsAtFloors != null
-    ? `<div class="diet-plan-macro-budget">Com P e G exatamente nos pisos, restam ${plan.caloriesForCarbsAtFloors} kcal (≈${plan.carbsAtFloors_g.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} g de carboidrato). Se P ou G passarem do piso, sobra menos para carbo.</div>`
+  const macroNote = plan.macroReconciliationNote
+    ? `<div class="diet-plan-note">${plan.macroReconciliationNote}</div>`
     : '';
   const meals = plan.meals.map(meal => {
-    const proteinRange = Array.isArray(meal.proteinRange_g) ? meal.proteinRange_g : null;
-    const mealTarget = proteinRange
-      ? `P ${proteinRange[0]}–${proteinRange[1]} g · guia`
-      : 'Sem alvo individual';
-    const macroLabel = proteinRange
-      ? 'Proteína é faixa-guia; kcal/carbo por refeição não definidos; conferir rótulos.'
-      : 'Kcal/macros por refeição não definidos; pesar os alimentos e usar os rótulos.';
+    const targets = [];
+    if (Array.isArray(meal.proteinRange_g)) targets.push(`P ${meal.proteinRange_g[0]}–${meal.proteinRange_g[1]} g`);
+    else if (Number.isFinite(meal.proteinTarget_g)) targets.push(`P ≈${meal.proteinTarget_g} g`);
+    if (Number.isFinite(meal.carbohydrateTarget_g)) targets.push(`C ≈${meal.carbohydrateTarget_g} g`);
+    const mealTarget = targets.length ? targets.join(' · ') : 'Sem meta individual';
+    const macroLabel = targets.length
+      ? 'Alvos aproximados; kcal/macros da refeição completa não calculados.'
+      : 'Kcal/macros por refeição não definidos; usar os rótulos e as porções informadas.';
+    const n = meal.labelNutrition;
+    const labelNutritionHtml = n
+      ? `<div class="diet-plan-meal-macros">Rótulo informado do leite (200 ml): ${n.kcal} kcal · P ${Number(n.protein_g).toLocaleString('pt-BR')} g · G ${Number(n.fat_g).toLocaleString('pt-BR')} g · C ${Number(n.carbohydrate_g).toLocaleString('pt-BR')} g; não representa a refeição completa.</div>`
+      : '';
     return `<div class="diet-plan-meal">
       <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
       <div class="diet-plan-meal-target">${mealTarget}</div>
       <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity}</div>
       <div class="diet-plan-meal-macros">${macroLabel}</div>
+      ${labelNutritionHtml}
       ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
     </div>`;
   }).join('');
+  const mealGuidance = plan.trialActive
+    ? 'Pré/pós: metas aproximadas, sem alimentos ou kcal por refeição definidos. Sem rateio de kcal/carbo por refeição.'
+    : 'Pré/pós: guia-base de 25–35 g de proteína em cada refeição; carbo pesado e distribuído flexivelmente entre elas, dentro do total diário.';
+  const trialBase = plan.trialActive
+    ? '<div class="diet-plan-note">contrato base v9d: 1.700 kcal/dia. Fora da janela de teste, volta ao alvo base.</div>'
+    : '';
   return `<section class="diet-plan-card">
     <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
-    <div class="diet-plan-meta">${plan.note} · P ≥${plan.protein_g} g/dia · G ≥${plan.fat_g} g/dia</div>
-    ${macroBudget}
-    <div class="diet-plan-note">Guia pré/pós: 25–35 g de proteína em cada refeição; 30 g de whey é peso do pó, confira proteína no rótulo. Carbo pesado e flexível entre as duas: mais carbo no pré significa menos no pós, dentro do total diário. Sem rateio de kcal/carbo por refeição e sem “mel à vontade”.</div>
-    ${changeHtml}<div class="diet-plan-meals">${meals}</div>${cutWarning}
+    <div class="diet-plan-meta">${plan.note}</div>
+    ${dailyTargetsHtml}${macroNote}${trialBase}
+    <div class="diet-plan-note">${mealGuidance}</div>
+    ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${expiredHtml}
   </section>`;
+}
+
+function formatHistoryExercise(ex) {
+  const planned = ex?.planned || {};
+  const actual = ex?.actual || {};
+  const plannedSteps = Array.isArray(planned.ladderSteps) ? planned.ladderSteps : [];
+  const actualSteps = Array.isArray(actual.ladderSteps) ? actual.ladderSteps : [];
+  if (plannedSteps.length) {
+    const done = actualSteps.filter(step => step.completed);
+    const doneReps = done.reduce((sum, step) => sum + Number(step.reps || 0), 0);
+    const totalReps = Number(planned.replaces?.totalReps)
+      || plannedSteps.reduce((sum, step) => sum + Number(step.reps || 0), 0);
+    const execution = done.map(step =>
+      `${step.reps} reps @ ${step.weightKg ?? '—'} kg (alvo RPE ${step.rpeTarget}, RPE real ${step.actualRpe ?? '—'})`
+    ).join(' → ') || 'nenhuma etapa concluída';
+    const replacement = Number.isFinite(Number(planned.replaces?.sets))
+      && Number.isFinite(Number(planned.replaces?.reps))
+      ? `; substitui ${planned.replaces.sets}×${planned.replaces.reps}, sem volume extra`
+      : '';
+    const stopped = actual.ladderStopped
+      ? (actual.ladderStopReason === 'knee_pain' ? ' · interrompida por dor no joelho' : ' · interrompida por RPE acima de 8')
+      : '';
+    const pain = actual.kneePain === null || actual.kneePain === undefined || actual.kneePain === ''
+      ? '' : ` · dor no joelho ${actual.kneePain}/10`;
+    return `${ex.name}: Escadinha ${done.length}/${plannedSteps.length} · ${doneReps}/${totalReps} reps — ${execution}${replacement}${stopped}${pain}`;
+  }
+  return `${ex?.name || 'Exercício'}: ${actual.setsCompleted || 0}x${planned.reps} @ ${actual.weight || planned.weight}kg`;
 }
 
 function formatTopSetPrescription(ts) {
   return `Top set — 1×${ts.reps} @RPE ${ts.rpeTarget}`;
 }
 
+function clampLoadToCap(value, cap) {
+  const weight = Number(value), limit = Number(cap);
+  if (!Number.isFinite(weight) || weight < 0 || !Number.isFinite(limit) || limit <= 0) return null;
+  return Math.min(weight, limit);
+}
+
+function forceLadderPainGate(workout, pain) {
+  const hasLadder = Array.isArray(workout?.exercises)
+    && workout.exercises.some(ex => Array.isArray(ex?.planned?.ladderSteps));
+  if (!hasLadder) return { required: false, ok: true, pain: null, reason: null };
+  const value = pain === null || pain === undefined || pain === '' ? null : Number(pain);
+  if (!Number.isFinite(value) || value < 0 || value > 10) {
+    return { required: true, ok: false, pain: value, reason: 'Registre a dor no joelho de 0 a 10 antes da escadinha.' };
+  }
+  if (value >= 3) {
+    return { required: true, ok: false, pain: value, reason: `Parar: dor no joelho ${value}/10 (limite 3/10).` };
+  }
+  return { required: true, ok: true, pain: value, reason: null };
+}
+
+function isRpeWithinCap(rpe, cap) {
+  if (rpe === null || rpe === undefined || rpe === '') return false;
+  const value = Number(rpe);
+  const ceiling = Number(cap);
+  return Number.isFinite(value) && Number.isFinite(ceiling)
+    && value >= 0 && value <= ceiling;
+}
+
+function getSuperMetaRpeConfig(superMeta, theme) {
+  const cap = Workout.rpeCap(theme, superMeta?.rpeCap);
+  return {
+    cap,
+    options: [7, 8, 9].filter(value => value <= cap),
+    range: theme === 'Hipertrofia' ? '7-8' : `${cap - 1}-${cap}`
+  };
+}
+
+function forceLadderStepGate(steps, stepIndex, loadCapKg, rpeCap = 8) {
+  if (!Array.isArray(steps) || !Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= steps.length) {
+    return { ok: false, reason: 'Etapa inválida.' };
+  }
+  const cap = Number(loadCapKg);
+  if (!Number.isFinite(cap) || cap <= 0) return { ok: false, reason: 'Sem teto de carga anterior registrado.' };
+  const current = steps[stepIndex];
+  const weight = Number(current?.weightKg);
+  if (!Number.isFinite(weight) || weight <= 0 || weight > cap) {
+    return { ok: false, reason: `Carga deve ser positiva e não superar ${cap} kg.` };
+  }
+  const maxRpe = Number(rpeCap);
+  if (!Number.isFinite(maxRpe) || maxRpe < 0 || !isRpeWithinCap(current?.actualRpe, maxRpe)) {
+    return { ok: false, reason: 'RPE real acima do teto 8 ou ainda não registrado.' };
+  }
+  const currentPain = current.kneePain === null || current.kneePain === undefined || current.kneePain === ''
+    ? null : Number(current.kneePain);
+  if (currentPain === null || !Number.isFinite(currentPain) || currentPain < 0 || currentPain >= 3) {
+    return { ok: false, reason: currentPain >= 3 ? 'Dor no joelho ≥3/10: interromper.' : 'Registre dor no joelho abaixo de 3/10.' };
+  }
+  for (let i = 0; i < stepIndex; i++) {
+    const previous = steps[i];
+    const rpe = previous.actualRpe === null || previous.actualRpe === undefined || previous.actualRpe === ''
+      ? NaN : Number(previous.actualRpe);
+    const pain = previous.kneePain === null || previous.kneePain === undefined || previous.kneePain === ''
+      ? NaN : Number(previous.kneePain);
+    const previousWeight = previous.weightKg === null || previous.weightKg === undefined || previous.weightKg === ''
+      ? NaN : Number(previous.weightKg);
+    if (!previous.completed) return { ok: false, reason: 'Conclua a etapa anterior antes de avançar.' };
+    if (!Number.isFinite(rpe) || rpe >= maxRpe) return { ok: false, reason: `RPE ${maxRpe} ou maior: interromper a escadinha.` };
+    if (!Number.isFinite(pain) || pain >= 3) return { ok: false, reason: 'Dor no joelho ≥3/10: interromper.' };
+    if (!Number.isFinite(previousWeight) || weight > previousWeight) {
+      return { ok: false, reason: 'A carga não pode aumentar entre etapas.' };
+    }
+  }
+  return { ok: true, reason: null };
+}
+
+function recordForceLadderRpe(ex, stepIndex, rawValue) {
+  const steps = ex?.actual?.ladderSteps;
+  if (!Array.isArray(steps) || !Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= steps.length) {
+    return { ok: false, reason: 'Etapa inválida.', value: null };
+  }
+  const capValue = Number(ex?.planned?.maxRpe);
+  const cap = Number.isFinite(capValue) && capValue >= 0 ? capValue : 8;
+  const empty = rawValue === null || rawValue === undefined || rawValue === '';
+  const value = empty ? null : Number(rawValue);
+  const accepted = value !== null && isRpeWithinCap(value, cap);
+  const invalidProvided = !empty && !accepted;
+  const step = steps[stepIndex];
+  step.actualRpe = accepted ? value : null;
+  if (!accepted) {
+    for (let i = stepIndex; i < steps.length; i++) steps[i].completed = false;
+    if (invalidProvided && Number.isFinite(value) && value > cap) {
+      ex.actual.ladderStopped = true;
+      ex.actual.ladderStopReason = 'rpe';
+    }
+    ex.actual.setsCompleted = steps.filter(item => item.completed).length;
+    ex.actual.completedSetIndices = steps
+      .map((item, i) => item.completed ? i : null).filter(i => i !== null);
+    return { ok: false, reason: value !== null && value > cap ? 'rpe_above_cap' : 'rpe_invalid_or_missing', value: null };
+  }
+  return { ok: true, reason: null, value };
+}
+
+function renderForceLadderMarkup(ex, index) {
+  const plan = ex?.planned || {};
+  const actual = ex?.actual || {};
+  const planSteps = Array.isArray(plan.ladderSteps) ? plan.ladderSteps : [];
+  const actualSteps = Array.isArray(actual.ladderSteps) ? actual.ladderSteps : [];
+  if (!planSteps.length) return '';
+  const cap = plan.loadCapKg === null || plan.loadCapKg === undefined
+    ? null : (Number.isFinite(Number(plan.loadCapKg)) ? Number(plan.loadCapKg) : null);
+  const blocked = !!plan.loadBlocked || cap === null;
+  const doneCount = actualSteps.filter(step => step.completed).length;
+  const totalReps = planSteps.reduce((sum, step) => sum + Number(step.reps || 0), 0);
+  const capText = blocked
+    ? 'Carga bloqueada: não há carga de trabalho anterior registrada neste ciclo; o app não estima nem inventa um peso.'
+    : `Teto de carga: ${String(cap).replace('.', ',')} kg (última carga registrada em S${plan.loadSourceWeek}; deloads excluídos; não é carga-alvo e não pode ser excedida).`;
+  const rows = planSteps.map((step, stepIndex) => {
+    const result = actualSteps[stepIndex] || {};
+    const weight = result.weightKg === null || result.weightKg === undefined ? '' : result.weightKg;
+    const actualRpe = result.actualRpe === null || result.actualRpe === undefined ? '' : result.actualRpe;
+    const stepCap = stepIndex > 0 && Number.isFinite(Number(actualSteps[stepIndex - 1]?.weightKg))
+      ? Math.min(cap ?? 0, Number(actualSteps[stepIndex - 1].weightKg)) : cap;
+    const gate = forceLadderStepGate(actualSteps, stepIndex, stepCap, plan.maxRpe);
+    const available = !blocked && !actual.ladderStopped && gate.ok
+      && (stepIndex === 0 || actualSteps.slice(0, stepIndex).every(previous => previous.completed));
+    return `<div class="force-ladder-step">
+      <span class="force-ladder-prescription">${stepIndex + 1}. ${step.reps} reps @ RPE ${step.rpeTarget}</span>
+      <label>Carga kg
+        <input type="number" class="force-ladder-weight" data-index="${index}" data-step="${stepIndex}" min="0" max="${stepCap ?? ''}" step="2.5" value="${weight}" ${blocked || actual.ladderStopped || (stepIndex > 0 && !actualSteps.slice(0, stepIndex).every(previous => previous.completed)) ? 'disabled' : ''}>
+      </label>
+      <label>RPE real
+        <input type="number" class="force-ladder-rpe" data-index="${index}" data-step="${stepIndex}" min="0" max="${plan.maxRpe ?? 8}" step="0.5" value="${actualRpe}" placeholder="0–${plan.maxRpe ?? 8}" ${blocked || actual.ladderStopped || (stepIndex > 0 && !actualSteps.slice(0, stepIndex).every(previous => previous.completed)) ? 'disabled' : ''}>
+      </label>
+      <label class="force-ladder-done-label">
+        <input type="checkbox" class="force-ladder-done" data-index="${index}" data-step="${stepIndex}" ${result.completed ? 'checked' : ''} ${!available || result.actualRpe == null || result.completed ? 'disabled' : ''}>
+        Concluí
+      </label>
+    </div>`;
+  }).join('');
+  const status = actual.ladderStopped
+    ? (actual.ladderStopReason === 'knee_pain'
+      ? `Parar: dor no joelho ${actual.kneePain ?? ''}/10 (limite 3/10). Etapas restantes bloqueadas.`
+      : 'Parar: RPE acima do teto 8. Etapas restantes bloqueadas.')
+    : `Etapas concluídas: ${doneCount}/${planSteps.length} · ${actual.ladderSteps?.filter(step => step.completed).reduce((sum, step) => sum + Number(step.reps || 0), 0) || 0}/${totalReps} reps.`;
+  return `<div class="force-ladder-card" id="force-ladder-${index}">
+    <div class="force-ladder-heading">ESCADINHA DE AGACHAMENTO · SUBSTITUI 3×4</div>
+    <div class="force-ladder-note">5+4+3 = ${totalReps} reps no total; sem volume extra. Alvos RPE 6→7→8; teto absoluto RPE 8.</div>
+    <div class="force-ladder-note">${capText}</div>
+    ${blocked ? '<div class="force-ladder-blocked">Não iniciar a escadinha sem confirmar uma carga de trabalho anterior deste ciclo.</div>' : ''}
+    <label class="force-ladder-pain-label">Dor no joelho (0–10; ≥3 interrompe a escadinha)
+      <input type="number" class="force-ladder-pain" data-index="${index}" min="0" max="10" step="1" value="${actual.kneePain ?? ''}" placeholder="Registre antes de iniciar">
+    </label>
+    <div class="force-ladder-steps">${rows}</div>
+    <div class="force-ladder-status${actual.ladderStopped ? ' stopped' : ''}" id="force-ladder-status-${index}">${status}</div>
+  </div>`;
+}
+
 function renderExerciseSeriesOverview(ex, topSetEnabled = true) {
+  const ladder = ex.actual && ex.actual.ladderSteps && ex.planned.ladderSteps;
+  if (ladder) {
+    const totalReps = ex.planned.ladderSteps.reduce((sum, step) => sum + Number(step.reps || 0), 0);
+    const sequence = ex.planned.ladderSteps.map(step => `${step.reps}@${step.rpeTarget}`).join(' → ');
+    return `<div class="work-set-overview">
+      <div class="work-set-overview-main"><span class="work-set-overview-label">Séries principais</span><strong class="work-set-overview-scheme">Escadinha ${sequence}</strong></div>
+      <div class="exercise-total-summary"><span class="exercise-total-label">Total prescrito</span><strong class="exercise-total-count">${ex.planned.ladderSteps.length} séries</strong><span class="exercise-total-detail">${totalReps} reps · substitui 3×4; sem volume extra</span></div>
+    </div>`;
+  }
   const topSet = ex.actual && ex.actual.topSet;
   const workSets = ex.planned.sets;
   const totalSets = workSets + (topSet ? 1 : 0);
@@ -1169,7 +1439,19 @@ function runLabel(dayDef, wd, week, now = new Date()) {
     return `${target.zone} · FC ≤ ${target.fcCap} · duração pendente da review`;
   }
   const prefix = target.minEhPiso ? '≥' : '';
-  return `${prefix}${target.min}min ${target.zone} · FC ≤ ${target.fcCap}`;
+  const segments = target.segments?.length ? ` · ${formatRunSegmentsLabel(target.segments)}` : '';
+  return `${prefix}${target.min}min ${target.zone}${segments} · FC ≤ ${target.fcCap}`;
+}
+
+function formatRunSegmentsLabel(segments) {
+  if (!Array.isArray(segments)) return '';
+  return segments.map(segment => {
+    if (segment?.tipo === 'continuo') return `${segment.min} min ${segment.zona}`;
+    if (segment?.tipo === 'intervalos') {
+      return `${segment.repeticoes}×(${segment.forte?.min} min forte controlado / ${segment.recuperacao?.min} min leve Z2)`;
+    }
+    return '';
+  }).filter(Boolean).join(' + ');
 }
 
 function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
@@ -1182,7 +1464,12 @@ function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
   const planned = approved && approved.sessoes.find(session => session.dia_app === `D${dayDef.day}`);
   if (planned && dayDef.run) {
     return { min: planned.min, minEhPiso: false, zone: planned.zona,
-             fcCap: planned.fc_cap, tipo: dayDef.run, source: 'review-aprovada' };
+             fcCap: planned.fc_cap, tipo: dayDef.run,
+             segments: Array.isArray(planned.segmentos)
+               ? planned.segmentos.map(segment => ({ ...segment,
+                   forte: segment.forte ? { ...segment.forte } : segment.forte,
+                   recuperacao: segment.recuperacao ? { ...segment.recuperacao } : segment.recuperacao })) : [],
+             source: 'review-aprovada' };
   }
   if (dayDef.run === 'quality' && c.qualidadePermitida && c.qualidade) {
     return { min: c.sessaoMinimaMin, minEhPiso: true, zone: c.qualidade.zona,
@@ -1327,8 +1614,8 @@ function validateRunningPlanPayload(plan) {
   if (!appWeek) {
     errors.push('semana fora do cronograma de treino-app');
   } else {
-    const expectedPhase = appWeek.deload ? 'deload' : 'base';
-    if (plan.fase !== expectedPhase) errors.push('fase não corresponde à semana do bloco no app');
+    // WEEK_DATA.deload belongs to strength; running phase comes from the approved
+    // running-plan contract and is checked below by its own phase-specific rules.
     if (appWeek.specialRun === '5k_test') errors.push('semana de teste 5K não aceita plano de Long Run');
   }
   if (!plan.excecao_deload || typeof plan.excecao_deload !== 'object'
@@ -1340,6 +1627,7 @@ function validateRunningPlanPayload(plan) {
 
   const sessions = Array.isArray(plan.sessoes) ? plan.sessoes : [];
   const expected = { D1: 'agachamento', D2: 'terra', D4: 'long_run' };
+  const zoneMinutes = new Map();
   const byDay = new Map();
   for (const session of sessions) {
     if (!session || !Object.hasOwn(expected, session.dia_app) || byDay.has(session.dia_app)) {
@@ -1349,9 +1637,66 @@ function validateRunningPlanPayload(plan) {
     byDay.set(session.dia_app, session);
     if (session.papel !== expected[session.dia_app]) errors.push(`${session.dia_app}: papel não confere`);
     if (!isFinitePositive(session.min)) errors.push(`${session.dia_app}: duração exata inválida`);
-    if (!['Z2', 'Z3'].includes(session.zona)) errors.push(`${session.dia_app}: zona explícita ausente`);
-    const expectedCap = session.zona === 'Z2' ? 150 : session.zona === 'Z3' ? 162 : null;
-    if (session.fc_cap !== expectedCap) errors.push(`${session.dia_app}: FC cap não confere com a zona aprovada`);
+    if (!['Z2', 'Z3', 'intervalado'].includes(session.zona)) errors.push(`${session.dia_app}: zona explícita ausente`);
+    const expectedCap = session.zona === 'Z2' ? 150 : session.zona === 'Z3' || session.zona === 'intervalado' ? 162 : null;
+    if (session.zona !== 'intervalado') {
+      if (session.fc_cap !== expectedCap) errors.push(`${session.dia_app}: FC cap não confere com a zona aprovada`);
+      if (session.segmentos != null && (!Array.isArray(session.segmentos) || session.segmentos.length)) {
+        errors.push(`${session.dia_app}: segmentos só são aceitos em sessão intervalada`);
+      }
+      zoneMinutes.set(session.dia_app, {
+        Z2: session.zona === 'Z2' && isFinitePositive(session.min) ? session.min : 0,
+        Z3: session.zona === 'Z3' && isFinitePositive(session.min) ? session.min : 0,
+        intervalo: 0
+      });
+    } else {
+      const segments = Array.isArray(session.segmentos) ? session.segmentos : [];
+      let segmentTotal = 0, maxSegmentCap = 0, validSegments = segments.length > 0;
+      const zones = { Z2: 0, Z3: 0, intervalo: 0 };
+      for (const [segmentIndex, segment] of segments.entries()) {
+        if (!segment || typeof segment !== 'object') {
+          errors.push(`${session.dia_app}: segmento ${segmentIndex + 1} inválido`);
+          validSegments = false;
+          continue;
+        }
+        if (segment.tipo === 'continuo') {
+          if (!isFinitePositive(segment.min) || segment.zona !== 'Z2' || segment.fc_cap !== 150) {
+            errors.push(`${session.dia_app}: segmento contínuo deve ser Z2/FC≤150`);
+            validSegments = false;
+            continue;
+          }
+          zones.Z2 += segment.min;
+          segmentTotal += segment.min;
+          maxSegmentCap = Math.max(maxSegmentCap, segment.fc_cap);
+        } else if (segment.tipo === 'intervalos') {
+          const work = segment.forte, recovery = segment.recuperacao;
+          if (!Number.isInteger(segment.repeticoes) || segment.repeticoes < 1
+              || !work || !recovery || !isFinitePositive(work.min) || work.zona !== 'intervalo'
+              || work.fc_cap !== 162 || !isFinitePositive(recovery.min) || recovery.zona !== 'Z2'
+              || recovery.fc_cap !== 150) {
+            errors.push(`${session.dia_app}: intervalos exigem forte controlado/FC≤162 e recuperação Z2/FC≤150`);
+            validSegments = false;
+            continue;
+          }
+          const workTotal = work.min * segment.repeticoes;
+          const recoveryTotal = recovery.min * segment.repeticoes;
+          zones.intervalo += workTotal;
+          zones.Z2 += recoveryTotal;
+          segmentTotal += workTotal + recoveryTotal;
+          maxSegmentCap = Math.max(maxSegmentCap, work.fc_cap, recovery.fc_cap);
+        } else {
+          errors.push(`${session.dia_app}: tipo de segmento desconhecido`);
+          validSegments = false;
+        }
+      }
+      if (!validSegments || !closeEnough(segmentTotal, session.min)) {
+        errors.push(`${session.dia_app}: segmentos não fecham com a duração total`);
+      }
+      if (session.fc_cap !== maxSegmentCap || session.fc_cap !== expectedCap) {
+        errors.push(`${session.dia_app}: FC cap da sessão não corresponde aos segmentos`);
+      }
+      zoneMinutes.set(session.dia_app, zones);
+    }
   }
   if (sessions.length !== 3 || ['D1', 'D2', 'D4'].some(day => !byDay.has(day))) {
     errors.push('a distribuição precisa tipar explicitamente D1, D2 e D4');
@@ -1362,11 +1707,15 @@ function validateRunningPlanPayload(plan) {
     && plan.long_minimo_excecao.trim().length > 0;
   const totals = plan.totais || {};
   const total = sessions.reduce((sum, s) => sum + (isFinitePositive(s.min) ? s.min : 0), 0);
-  const z2 = sessions.reduce((sum, s) => sum + (s.zona === 'Z2' && isFinitePositive(s.min) ? s.min : 0), 0);
-  const z3 = sessions.reduce((sum, s) => sum + (s.zona === 'Z3' && isFinitePositive(s.min) ? s.min : 0), 0);
+  const z2 = [...zoneMinutes.values()].reduce((sum, value) => sum + value.Z2, 0);
+  const z3 = [...zoneMinutes.values()].reduce((sum, value) => sum + value.Z3, 0);
+  const intervals = [...zoneMinutes.values()].reduce((sum, value) => sum + value.intervalo, 0);
+  const terraZ2 = zoneMinutes.get('D2')?.Z2 ?? 0;
   if (!closeEnough(totals.total_semanal_min, total)
-      || !closeEnough(totals.total_z2_min, z2) || !closeEnough(totals.total_z3_min, z3)) {
-    errors.push('totais semanal/Z2/Z3 não fecham com as sessões');
+      || !closeEnough(totals.total_z2_min, z2) || !closeEnough(totals.total_z3_min, z3)
+      || !closeEnough(totals.total_intervalo_min, intervals)
+      || !closeEnough(totals.terra_z2_min, terraZ2)) {
+    errors.push('totais semanal/Z2/Z3/intervalos/terra-Z2 não fecham com as sessões');
   }
   if (d1 && !closeEnough(totals.agachamento_z2_min, d1.min)
       || d4 && !closeEnough(totals.long_run_z2_min, d4.min)) {
@@ -1377,10 +1726,11 @@ function validateRunningPlanPayload(plan) {
     if (d1 && (d1.zona !== 'Z2' || d1.fc_cap !== 150 || !closeEnough(d1.min, 30))) {
       errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150');
     }
-    if (d2 && (d2.zona !== 'Z3' || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3/FC≤162');
+    if (d2 && (!['Z3', 'intervalado'].includes(d2.zona) || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3 ou intervalado/FC≤162');
     if (d4 && d4.zona !== 'Z2') errors.push('semana regular: D4 Long Run deve ser Z2');
-    if (d1 && d4 && !closeEnough(d4.min, totals.total_z2_min - 30)) {
-      errors.push('semana regular: D4 deve ser total Z2 menos 30 min de D1');
+    if (d1 && d4 && !closeEnough(d4.min,
+        totals.total_z2_min - totals.agachamento_z2_min - totals.terra_z2_min)) {
+      errors.push('semana regular: D4 deve ser total Z2 menos D1 e Z2 do D2 Terra');
     }
     const range = plan.faixa_volume_aprovada_min;
     if (!Array.isArray(range) || range.length !== 2 || !isFinitePositive(range[0])
@@ -1388,7 +1738,7 @@ function validateRunningPlanPayload(plan) {
         || total < range[0] - 0.05 || total > range[1] + 0.05) {
       errors.push('volume total fora da faixa aprovada pela review');
     }
-    if (plan.regra_long_run !== 'total_z2_min - agachamento_z2_min') errors.push('regra regular do Long Run ausente');
+    if (plan.regra_long_run !== 'total_z2_min - agachamento_z2_min - terra_z2_min') errors.push('regra regular do Long Run ausente');
     const floor = Number.isFinite(plan.long_minimo_min) ? plan.long_minimo_min : 30;
     if (d4 && d4.min < floor && !hasLongMinimumException) errors.push('Long Run abaixo do piso sem exceção explícita');
     if ((plan.excecao_deload || {}).aplica === true) errors.push('exceção de deload em semana regular');
@@ -1942,17 +2292,20 @@ const Workout = {
   },
 
   // RPE teto do tema (freio anti-extrapolacao). Usado como assumido quando o user nao informa.
-  rpeCap(theme) {
-    if (theme === 'Hipertrofia') return 8;        // RPE 7-8
-    return 9;                                      // Forca/Potencia RPE 8-9
+  rpeCap(theme, weekCap = null) {
+    const themeCap = theme === 'Hipertrofia' ? 8 : 9;
+    const requestedCap = weekCap === null || weekCap === undefined || weekCap === ''
+      ? NaN : Number(weekCap);
+    return Number.isFinite(requestedCap) ? Math.min(themeCap, requestedCap) : themeCap;
   },
 
   // Inicializa o objeto superMeta no exercicio foco. scheme = {s, r, pct}, weight = peso prescrito.
-  initSuperMeta(theme, scheme, weight) {
+  initSuperMeta(theme, scheme, weight, weekCap = null) {
     const mode = this.superMetaMode(theme);
     if (!mode) return null;
     return {
       mode,
+      rpeCap: this.rpeCap(theme, weekCap),
       baseWeight: weight,
       baseReps: scheme.r,
       weight,                                      // editavel se mode 'carga'
@@ -1976,6 +2329,47 @@ const Workout = {
       weight: this.calcWeight(config.oneRM[ex.lift], t.pct),
       done: false,
       note: `${t.reps} reps @RPE ${t.rpe}: parar se a técnica quebrar`
+    };
+  },
+
+  findLastWorkingLoad(lift, cycleId, beforeWeek) {
+    // A carga de referência é a última semana regular concluída; o deload é recuperação,
+    // então sua redução temporária não vira teto da escadinha após o deload.
+    const workouts = Storage.getWorkouts()
+      .filter(w => w && w.completed && w.cycleId === cycleId
+        && Number.isInteger(Number(w.week)) && Number(w.week) < Number(beforeWeek)
+        && WEEK_DATA[Number(w.week)] && !WEEK_DATA[Number(w.week)].deload)
+        .sort((a, b) => Number(b.week) - Number(a.week)
+          || String(b.date || '').localeCompare(String(a.date || ''))
+          || Number(b.dayNum || 0) - Number(a.dayNum || 0));
+    for (const workout of workouts) {
+      const ex = (workout.exercises || []).find(item => item && item.lift === lift && item.type === 'primary');
+      if (!ex) continue;
+      const actual = Number(ex.actual?.weight);
+      const planned = Number(ex.planned?.weight);
+      const weight = Number.isFinite(actual) && actual > 0
+        ? actual
+        : Number.isFinite(planned) && planned > 0 ? planned : null;
+      if (weight !== null) return { weight, week: Number(workout.week), date: workout.date || null };
+    }
+    return null;
+  },
+
+  initForceLadder(wd, ex, config) {
+    const definition = wd.forceLadder;
+    if (!definition || ex.level !== 'primary' || ex.lift !== definition.lift) return null;
+    const lastLoad = this.findLastWorkingLoad(ex.lift, config.cycleId, config.currentWeek);
+    const plannedSteps = definition.steps.map(step => ({ reps: step.reps, rpeTarget: step.rpeTarget }));
+    const loadCapKg = lastLoad ? lastLoad.weight : null;
+    return {
+      loadCapKg, loadSourceWeek: lastLoad ? lastLoad.week : null,
+      loadBlocked: !lastLoad, loadPolicy: definition.loadPolicy,
+      maxRpe: definition.maxRpe, replaces: { ...definition.replaces },
+      plannedSteps,
+      actualSteps: plannedSteps.map(step => ({
+        reps: step.reps, rpeTarget: step.rpeTarget,
+        weightKg: null, actualRpe: null, kneePain: null, completed: false
+      }))
     };
   },
 
@@ -2033,12 +2427,21 @@ const Workout = {
       dayDef.exercises.forEach(ex => {
         const scheme = ex.level === 'primary' ? wd.p : wd.sec;
         const w = this.calcWeight(config.oneRM[ex.lift], scheme.pct);
+        const ladder = this.initForceLadder(wd, ex, config);
+        const planned = { sets: scheme.s, reps: scheme.r, percentage: scheme.pct,
+          weight: ladder ? ladder.loadCapKg : w };
+        if (ladder) Object.assign(planned, {
+          ladderSteps: ladder.plannedSteps, loadCapKg: ladder.loadCapKg,
+          loadSourceWeek: ladder.loadSourceWeek, loadBlocked: ladder.loadBlocked,
+          loadPolicy: ladder.loadPolicy, maxRpe: ladder.maxRpe, replaces: ladder.replaces
+        });
         base.exercises.push({
           name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
-          planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
+          planned,
           actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
-            superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null,
-            topSet: this.initTopSet(wd, ex, config) }
+            superMeta: ladder ? null : (ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w, wd.rpeCap) : null),
+            topSet: ladder ? null : this.initTopSet(wd, ex, config),
+            ...(ladder ? { ladderSteps: ladder.actualSteps, kneePain: null, ladderStopped: false, ladderStopReason: null } : {}) }
         });
       });
     }
@@ -2047,12 +2450,21 @@ const Workout = {
       const ex = dayDef.strength;
       const scheme = ex.level === 'primary' ? wd.p : wd.sec;
       const w = this.calcWeight(config.oneRM[ex.lift], scheme.pct);
+      const ladder = this.initForceLadder(wd, ex, config);
+      const planned = { sets: scheme.s, reps: scheme.r, percentage: scheme.pct,
+        weight: ladder ? ladder.loadCapKg : w };
+      if (ladder) Object.assign(planned, {
+        ladderSteps: ladder.plannedSteps, loadCapKg: ladder.loadCapKg,
+        loadSourceWeek: ladder.loadSourceWeek, loadBlocked: ladder.loadBlocked,
+        loadPolicy: ladder.loadPolicy, maxRpe: ladder.maxRpe, replaces: ladder.replaces
+      });
       base.exercises.push({
         name: LIFT_NAMES[ex.lift], type: ex.level, lift: ex.lift,
-        planned: { sets: scheme.s, reps: scheme.r, percentage: scheme.pct, weight: w },
+        planned,
         actual: { weight: null, setsCompleted: 0, completedSetIndices: [],
-          superMeta: ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w) : null,
-          topSet: this.initTopSet(wd, ex, config) }
+          superMeta: ladder ? null : (ex.level === 'primary' ? this.initSuperMeta(wd.theme, scheme, w, wd.rpeCap) : null),
+          topSet: ladder ? null : this.initTopSet(wd, ex, config),
+          ...(ladder ? { ladderSteps: ladder.actualSteps, kneePain: null, ladderStopped: false, ladderStopReason: null } : {}) }
       });
     }
 
@@ -2105,8 +2517,8 @@ const Export = {
 
     const headers = ['date','day_num','day_type','day_name','week','cycle_id','block','theme',
       'exercise','type','planned_sets','planned_reps','planned_pct','planned_weight',
-      'actual_weight','sets_completed','sm_reps','sm_rpe','sm_est_1rm','run_target_min','run_zone','run_actual_min',
-      'run_hr','run_pace','duration_min'];
+      'actual_weight','sets_completed','sm_reps','sm_rpe','sm_est_1rm','planned_ladder','load_cap_kg','actual_ladder','knee_pain',
+      'run_target_min','run_zone','run_actual_min','run_hr','run_pace','duration_min'];
     const rows = [headers.join(',')];
 
     workouts.forEach(w => {
@@ -2114,16 +2526,27 @@ const Export = {
       if (w.exercises && w.exercises.length) {
         w.exercises.forEach(ex => {
           const sm = (ex.actual.superMeta && !ex.actual.superMeta.blocked) ? ex.actual.superMeta : null;
+          const plannedLadder = Array.isArray(ex.planned.ladderSteps)
+            ? ex.planned.ladderSteps.map(step => `${step.reps}@RPE${step.rpeTarget}`).join('>') : '';
+          const ladder = Array.isArray(ex.planned.ladderSteps) && ex.planned.ladderSteps.length > 0;
+          const plannedSets = ladder ? ex.planned.ladderSteps.length : ex.planned.sets;
+          const plannedReps = ladder ? '' : ex.planned.reps;
+          const plannedPct = ladder ? '' : ex.planned.percentage;
+          const plannedWeight = ladder ? '' : ex.planned.weight;
+          const loadCap = Number.isFinite(ex.planned.loadCapKg) ? ex.planned.loadCapKg : '';
+          const actualLadder = Array.isArray(ex.actual.ladderSteps)
+            ? ex.actual.ladderSteps.map(step => `${step.reps}@RPE${step.rpeTarget}:${step.weightKg ?? ''}kg:${step.actualRpe ?? ''}:${step.kneePain ?? ''}:${step.completed ? 'done' : 'todo'}`).join(';') : '';
+          const kneePain = Number.isFinite(ex.actual.kneePain) ? ex.actual.kneePain : '';
           rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
-            ex.name,ex.type,ex.planned.sets,ex.planned.reps,ex.planned.percentage,
-            ex.planned.weight,ex.actual.weight||'',ex.actual.setsCompleted||0,
+            ex.name,ex.type,plannedSets,plannedReps,plannedPct,
+            plannedWeight,ex.actual.weight||'',ex.actual.setsCompleted||0,
             sm?sm.reps:'',sm?(sm.rpe||''):'',sm?(sm.estimated1RM||''):'',
-            '','','','','',dur].join(','));
+            plannedLadder,loadCap,actualLadder,kneePain,'','','','','',dur].join(','));
         });
       }
       if (w.running && w.running.actual) {
         rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
-          'Corrida','running','','','','','','','','','',
+          'Corrida','running',...Array(13).fill(''),
           w.running.target.min,w.running.target.zone,
           w.running.actual.duration||'',w.running.actual.hr||'',
           w.running.actual.pace||'',dur].join(','));
@@ -2132,7 +2555,7 @@ const Export = {
         w.accessories.forEach(a => {
           rows.push([w.date,w.dayNum,w.dayType,w.dayName,w.week,w.cycleId||'',w.block,w.theme,
             a.name,'accessory',a.sets,a.reps,'','',a.actualWeight||'',
-            a.setsCompleted||0,'','','','','','','','',dur].join(','));
+            a.setsCompleted||0,...Array(12).fill(''),dur].join(','));
         });
       }
     });
@@ -2647,21 +3070,20 @@ const App = {
 
   renderExerciseCard(container, ex, index) {
     const sm = ex.actual.superMeta;
+    const showLadder = Array.isArray(ex.planned.ladderSteps) && Array.isArray(ex.actual.ladderSteps);
     const blockReason = sm ? this.superMetaBlocked() : null;
     if (sm) sm.blocked = !!blockReason;
     const showSuper = sm && !blockReason;
-    // Top set (1x/semana, perto da falha): mesmo gate de readiness da super meta —
-    // RPE 9 so com recovery.flag verde (bloco.forca.rpeMaxGateVerde).
     const ts = ex.actual.topSet;
     const tsBlockReason = ts ? this.superMetaBlocked() : null;
     if (ts) ts.blocked = !!tsBlockReason;
     const showTopSet = ts && !tsBlockReason;
-    const bbHtml = Workout.formatBarBreakdown(ex.planned.weight);
+    const bbHtml = Number.isFinite(ex.planned.weight) && ex.planned.weight > 0
+      ? Workout.formatBarBreakdown(ex.planned.weight) : 'Carga sem prescrição disponível';
     const div = document.createElement('div');
-    div.className = 'exercise-card' + (showSuper ? ' has-super-meta' : '');
+    div.className = 'exercise-card' + (showSuper ? ' has-super-meta' : '') + (showLadder ? ' has-force-ladder' : '');
 
-    // Bloco "Carga real" so quando NAO ha super meta ativa (com super meta, o painel cuida do peso/reps)
-    const cargaRealHtml = showSuper ? '' : `
+    const cargaRealHtml = showSuper || showLadder ? '' : `
       <div class="exercise-input">
         <label>Carga real:</label>
         <input type="number" class="weight-input ex-weight" data-index="${index}" value="${ex.actual.weight || ex.planned.weight}" step="2.5"> kg
@@ -2670,40 +3092,45 @@ const App = {
       <div class="bar-breakdown" id="bb-input-${index}">
         <div class="bar-breakdown-inner" id="bb-input-c-${index}">${Workout.formatBarBreakdown(ex.actual.weight || ex.planned.weight)}</div>
       </div>`;
+    const schemeHtml = showLadder
+      ? `<div class="exercise-scheme"><strong>Escadinha 5@RPE6 → 4@RPE7 → 3@RPE8</strong><br>Substitui 3×4; 12 reps totais, sem volume extra.</div>`
+      : `<div class="exercise-scheme bar-toggle" data-breakdown="bb-scheme-${index}">
+          ${ex.planned.sets}×${ex.planned.reps} @ ${ex.planned.percentage}% = <strong>${ex.planned.weight}kg</strong>
+          <span class="bar-toggle-icon" id="icon-scheme-${index}">▼</span>
+        </div>
+        <div class="bar-breakdown open" id="bb-scheme-${index}"><div class="bar-breakdown-inner">${bbHtml}</div></div>`;
+    const setsHtml = showLadder
+      ? `<div class="sets-count" id="sets-count-${index}">${ex.actual.setsCompleted || 0}/${ex.planned.sets} etapas concluídas</div>`
+      : `<div class="sets-tracker">
+          ${Array(ex.planned.sets).fill(0).map((_,i) => {
+            const isFocus = showSuper && i === sm.focusSetIndex;
+            return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Série ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
+          }).join('')}
+        </div>
+        <div class="sets-count" id="sets-count-${index}">0/${ex.planned.sets} séries de trabalho concluídas</div>`;
 
     div.innerHTML = `
       <div class="exercise-header">
         <span class="exercise-name">${ex.name}</span>
         <span class="exercise-type ${ex.type}">${ex.type === 'primary' ? 'FOCO' : 'SECUNDARIO'}</span>
       </div>
-      ${showTopSet ? this.topSetHtml(ts, index) : (ts && tsBlockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${tsBlockReason}) — top set desativado hoje. Segue so o treino normal.</div>` : '')}
+      ${showTopSet ? this.topSetHtml(ts, index) : (ts && tsBlockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${tsBlockReason}) — top set desativado hoje. Segue só o treino normal.</div>` : '')}
       <div class="work-set-group">
         ${renderExerciseSeriesOverview(ex, showTopSet)}
-        <div class="exercise-scheme bar-toggle" data-breakdown="bb-scheme-${index}">
-          ${ex.planned.sets}×${ex.planned.reps} @ ${ex.planned.percentage}% = <strong>${ex.planned.weight}kg</strong>
-          <span class="bar-toggle-icon" id="icon-scheme-${index}">▼</span>
-        </div>
-        <div class="bar-breakdown open" id="bb-scheme-${index}">
-          <div class="bar-breakdown-inner">${bbHtml}</div>
-        </div>
+        ${schemeHtml}
         ${cargaRealHtml}
+        ${showLadder ? renderForceLadderMarkup(ex, index) : ''}
         ${showSuper ? this.superMetaHtml(sm, index) : (blockReason ? `<div class="sm-blocked">⚠ Readiness baixo (${blockReason}) — super meta desativada hoje. Registra o treino normal.</div>` : '')}
-        <div class="sets-tracker">
-          ${Array(ex.planned.sets).fill(0).map((_,i) => {
-            const isFocus = showSuper && i === sm.focusSetIndex;
-            return `<button class="set-btn${isFocus ? ' focus-set' : ''}" data-exercise="${index}" data-set="${i}">Série ${i+1}${isFocus ? ' ⭐' : ''}</button>`;
-          }).join('')}
-        </div>
-        <div class="sets-count" id="sets-count-${index}">0/${ex.planned.sets} séries de trabalho concluídas</div>
+        ${setsHtml}
       </div>`;
     container.appendChild(div);
 
-    // Listeners
-    div.querySelector('.bar-toggle').addEventListener('click', () => {
+    const schemeToggle = div.querySelector('.bar-toggle');
+    if (schemeToggle) schemeToggle.addEventListener('click', () => {
       document.getElementById(`bb-scheme-${index}`).classList.toggle('open');
       document.getElementById(`icon-scheme-${index}`).classList.toggle('open');
     });
-    if (!showSuper) {
+    if (!showSuper && !showLadder) {
       const iconInput = div.querySelector(`#icon-input-${index}`);
       iconInput.addEventListener('click', () => {
         document.getElementById(`bb-input-${index}`).classList.toggle('open');
@@ -2715,17 +3142,153 @@ const App = {
         document.getElementById(`bb-input-c-${index}`).innerHTML = Workout.formatBarBreakdown(val);
         this.persistWorkout();
       });
-    } else {
+    } else if (showSuper) {
       this.wireSuperMeta(div, index);
     }
     if (showTopSet) this.wireTopSet(div, index);
-    div.querySelectorAll('.set-btn').forEach(btn => {
+    if (showLadder) this.wireForceLadder(div, index);
+    else div.querySelectorAll('.set-btn').forEach(btn => {
       btn.addEventListener('click', e => this.toggleSet(e.target));
     });
   },
 
-  // HTML do top set (perto da falha, antes das series normais). Reaproveita as
-  // classes do card de super meta (.super-meta-card/.sm-*); so a borda muda.
+  updateForceLadderUI(index) {
+    const ex = this.currentWorkout?.exercises?.[index];
+    if (!ex || !Array.isArray(ex.planned?.ladderSteps) || !Array.isArray(ex.actual?.ladderSteps)) return;
+    const plan = ex.planned, actual = ex.actual;
+    const painGate = forceLadderPainGate(this.currentWorkout, actual.kneePain);
+    const nextIndex = actual.ladderSteps.findIndex(step => !step.completed);
+    const status = document.getElementById(`force-ladder-status-${index}`);
+    if (status) {
+      const doneReps = actual.ladderSteps.filter(step => step.completed).reduce((sum, step) => sum + Number(step.reps || 0), 0);
+      if (actual.ladderStopped) {
+        status.textContent = actual.ladderStopReason === 'knee_pain'
+          ? `Parar: dor no joelho ${actual.kneePain}/10 (limite 3/10). Etapas restantes bloqueadas.`
+          : 'Parar: RPE 8 ou maior atingido antes do último degrau; etapas restantes bloqueadas.';
+      } else if (plan.loadBlocked || !Number.isFinite(plan.loadCapKg)) {
+        status.textContent = 'Bloqueado: falta carga de trabalho anterior registrada neste ciclo.';
+      } else if (!painGate.ok) {
+        status.textContent = painGate.reason;
+      } else if (nextIndex < 0) {
+        status.textContent = `Escadinha concluída: ${doneReps}/${plan.replaces?.totalReps || 12} reps.`;
+      } else {
+        const step = plan.ladderSteps[nextIndex];
+        status.textContent = `Próximo: ${step.reps} reps @ RPE ${step.rpeTarget}; registre o RPE real antes de avançar.`;
+      }
+      status.classList.toggle('stopped', !!actual.ladderStopped || !painGate.ok);
+    }
+    const card = document.getElementById(`force-ladder-${index}`);
+    if (!card) return;
+    card.querySelectorAll('.force-ladder-step').forEach((row, stepIndex) => {
+      const step = actual.ladderSteps[stepIndex];
+      const weightInput = row.querySelector('.force-ladder-weight');
+      const rpeInput = row.querySelector('.force-ladder-rpe');
+      const doneBox = row.querySelector('.force-ladder-done');
+      if (weightInput) weightInput.value = step.weightKg ?? '';
+      if (rpeInput) rpeInput.value = step.actualRpe ?? '';
+      if (doneBox) doneBox.checked = !!step.completed;
+      const lockedFuture = nextIndex >= 0 && stepIndex > nextIndex;
+      if (weightInput) weightInput.disabled = !!plan.loadBlocked || !!actual.ladderStopped || lockedFuture;
+      if (rpeInput) rpeInput.disabled = !!plan.loadBlocked || !!actual.ladderStopped || lockedFuture;
+      if (doneBox) doneBox.disabled = !!plan.loadBlocked || !!actual.ladderStopped
+        || !painGate.ok || step.completed || step.actualRpe == null || stepIndex !== nextIndex
+        || !forceLadderStepGate(actual.ladderSteps, stepIndex,
+          stepIndex > 0 ? Math.min(plan.loadCapKg, Number(actual.ladderSteps[stepIndex - 1].weightKg)) : plan.loadCapKg,
+          plan.maxRpe).ok;
+    });
+    const count = document.getElementById(`sets-count-${index}`);
+    if (count) count.textContent = `${actual.ladderSteps.filter(step => step.completed).length}/${plan.ladderSteps.length} etapas concluídas`;
+  },
+
+  wireForceLadder(div, index) {
+    const ex = this.currentWorkout.exercises[index];
+    const actual = ex.actual;
+    const painInput = div.querySelector('.force-ladder-pain');
+    if (painInput) painInput.addEventListener('change', event => {
+      const raw = event.target.value;
+      const pain = raw === '' ? null : Number(raw);
+      actual.kneePain = Number.isFinite(pain) ? pain : null;
+      actual.ladderSteps.forEach(step => { step.kneePain = actual.kneePain; });
+      const gate = forceLadderPainGate(this.currentWorkout, actual.kneePain);
+      if (gate.reason && actual.kneePain !== null && actual.kneePain >= 3) {
+        actual.ladderStopped = true;
+        actual.ladderStopReason = 'knee_pain';
+      }
+      this.persistWorkout();
+      this.updateForceLadderUI(index);
+    });
+    div.querySelectorAll('.force-ladder-weight').forEach(input => input.addEventListener('change', event => {
+      const stepIndex = Number(event.target.dataset.step);
+      const step = actual.ladderSteps[stepIndex];
+      if (!step) return;
+      const previousWeight = stepIndex > 0 ? Number(actual.ladderSteps[stepIndex - 1].weightKg) : Number(ex.planned.loadCapKg);
+      const cap = stepIndex > 0 && Number.isFinite(previousWeight)
+        ? Math.min(Number(ex.planned.loadCapKg), previousWeight) : Number(ex.planned.loadCapKg);
+      const value = event.target.value === '' ? null : clampLoadToCap(event.target.value, cap);
+      step.weightKg = value;
+      event.target.value = value ?? '';
+      this.persistWorkout();
+      this.updateForceLadderUI(index);
+    }));
+    div.querySelectorAll('.force-ladder-rpe').forEach(input => input.addEventListener('change', event => {
+      const stepIndex = Number(event.target.dataset.step);
+      const step = actual.ladderSteps[stepIndex];
+      if (!step) return;
+      const result = recordForceLadderRpe(ex, stepIndex, event.target.value);
+      event.target.value = result.ok ? String(result.value) : '';
+      if (step.actualRpe !== null && step.completed
+          && step.actualRpe >= (Number(ex.planned.maxRpe) || 8) && stepIndex < actual.ladderSteps.length - 1) {
+        actual.ladderStopped = true;
+        actual.ladderStopReason = 'rpe';
+      }
+      this.persistWorkout();
+      this.updateForceLadderUI(index);
+    }));
+    div.querySelectorAll('.force-ladder-done').forEach(box => box.addEventListener('change', event => {
+      const stepIndex = Number(event.target.dataset.step);
+      const step = actual.ladderSteps[stepIndex];
+      if (!step || !event.target.checked) return;
+      const painGate = forceLadderPainGate(this.currentWorkout, actual.kneePain);
+      const rpeInput = div.querySelector(`.force-ladder-rpe[data-step="${stepIndex}"]`);
+      const weightInput = div.querySelector(`.force-ladder-weight[data-step="${stepIndex}"]`);
+      const rawRpe = rpeInput?.value;
+      const rpeResult = recordForceLadderRpe(ex, stepIndex, rawRpe);
+      if (!rpeResult.ok) {
+        event.target.checked = false;
+        if (rpeInput) rpeInput.value = '';
+        this.persistWorkout();
+        this.updateForceLadderUI(index);
+        return;
+      }
+      step.weightKg = weightInput?.value === '' ? null
+        : clampLoadToCap(weightInput?.value, ex.planned.loadCapKg);
+      step.kneePain = actual.kneePain;
+      const stepCap = stepIndex > 0
+        ? Math.min(ex.planned.loadCapKg, Number(actual.ladderSteps[stepIndex - 1].weightKg))
+        : ex.planned.loadCapKg;
+      const gate = forceLadderStepGate(actual.ladderSteps, stepIndex, stepCap, ex.planned.maxRpe);
+      if (!painGate.ok || !Number.isFinite(step.actualRpe) || !gate.ok) {
+        event.target.checked = false;
+        this.persistWorkout();
+        this.updateForceLadderUI(index);
+        return;
+      }
+      step.completed = true;
+      actual.setsCompleted = actual.ladderSteps.filter(item => item.completed).length;
+      actual.completedSetIndices = actual.ladderSteps
+        .map((item, i) => item.completed ? i : null).filter(i => i !== null);
+      const rpeCap = Number(ex.planned.maxRpe) || 8;
+      if (step.actualRpe > rpeCap || (step.actualRpe >= rpeCap && stepIndex < actual.ladderSteps.length - 1)) {
+        actual.ladderStopped = true;
+        actual.ladderStopReason = 'rpe';
+      }
+      this.persistWorkout();
+      this.updateForceLadderUI(index);
+    }));
+    this.updateForceLadderUI(index);
+  },
+
+  // HTML do top set (perto da falha, antes das séries normais).
   topSetHtml(ts, index) {
     return `
       <div class="super-meta-card top-set-card" id="ts-card-${index}">
@@ -2770,7 +3333,8 @@ const App = {
   // HTML do painel de super meta (fricçao invertida: valores base pre-preenchidos)
   superMetaHtml(sm, index) {
     const theme = this.currentWorkout.theme;
-    const rpeRange = theme === 'Hipertrofia' ? '7-8' : '8-9';
+    const rpeConfig = getSuperMetaRpeConfig(sm, theme);
+    const rpeRange = rpeConfig.range;
     const est = Workout.estimate1RM(sm.weight, sm.reps);
     const serieLabel = sm.mode === 'carga' ? '1ª série (fresco)' : 'última série (AMRAP)';
     const editBlock = sm.mode === 'carga' ? `
@@ -2796,7 +3360,7 @@ const App = {
         ${editBlock}
         <div class="sm-rpe">
           <span class="sm-label">RPE</span>
-          ${[7,8,9].map(r => `<button class="sm-rpe-btn${sm.rpe===r?' active':''}" data-sm="${index}" data-rpe="${r}">${r}</button>`).join('')}
+          ${rpeConfig.options.map(r => `<button class="sm-rpe-btn${sm.rpe===r?' active':''}" data-sm="${index}" data-rpe="${r}">${r}</button>`).join('')}
         </div>
         <div class="sm-est" id="sm-est-${index}">1RM estimado: <strong>${est} kg</strong></div>
         <div class="sm-cap">⛔ PARE no RPE ${rpeRange} — não vá à falha</div>
@@ -2841,6 +3405,7 @@ const App = {
       btn.addEventListener('click', () => {
         const sm = this.currentWorkout.exercises[index].actual.superMeta;
         const r = parseInt(btn.dataset.rpe);
+        if (!isRpeWithinCap(r, getSuperMetaRpeConfig(sm, this.currentWorkout.theme).cap)) return;
         sm.rpe = (sm.rpe === r) ? null : r; // toggle
         div.querySelectorAll('.sm-rpe-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rpe) === sm.rpe));
         this.persistWorkout();
@@ -3184,6 +3749,7 @@ const App = {
         const el = document.getElementById(`sets-count-${i}`);
         if (el) el.textContent = `${ex.actual.setsCompleted}/${ex.planned.sets} séries de trabalho concluídas`;
       }
+      if (Array.isArray(ex.planned.ladderSteps)) this.updateForceLadderUI(i);
     });
     if (w.accessories) {
       w.accessories.forEach((acc, i) => {
@@ -3225,6 +3791,53 @@ const App = {
         w.exercises[i].actual.topSet.done = cb.checked;
       }
     });
+    document.querySelectorAll('.force-ladder-pain').forEach(input => {
+      const i = parseInt(input.dataset.index);
+      const ex = w.exercises[i];
+      if (!ex || !Array.isArray(ex.actual.ladderSteps)) return;
+      const pain = input.value === '' ? null : Number(input.value);
+      ex.actual.kneePain = Number.isFinite(pain) ? pain : null;
+      ex.actual.ladderSteps.forEach(step => { step.kneePain = ex.actual.kneePain; });
+      if (ex.actual.kneePain !== null && ex.actual.kneePain >= 3) {
+        ex.actual.ladderStopped = true;
+        ex.actual.ladderStopReason = 'knee_pain';
+      }
+    });
+    document.querySelectorAll('.force-ladder-weight').forEach(input => {
+      const ex = w.exercises[parseInt(input.dataset.index)];
+      const step = ex?.actual?.ladderSteps?.[Number(input.dataset.step)];
+      if (!step) return;
+      const value = input.value === '' ? null : clampLoadToCap(input.value, ex.planned.loadCapKg);
+      step.weightKg = value;
+    });
+    document.querySelectorAll('.force-ladder-rpe').forEach(input => {
+      const ex = w.exercises[parseInt(input.dataset.index)];
+      const step = ex?.actual?.ladderSteps?.[Number(input.dataset.step)];
+      if (!step) return;
+      const rpeResult = recordForceLadderRpe(ex, Number(input.dataset.step), input.value);
+      if (!rpeResult.ok) input.value = '';
+    });
+    w.exercises.forEach(ex => {
+      if (!Array.isArray(ex.planned.ladderSteps) || !Array.isArray(ex.actual.ladderSteps)) return;
+      ex.actual.ladderSteps.forEach((step, stepIndex, steps) => {
+        const previousWeight = stepIndex > 0 ? Number(steps[stepIndex - 1].weightKg) : Number(ex.planned.loadCapKg);
+        const stepCap = stepIndex > 0 && Number.isFinite(previousWeight)
+          ? Math.min(Number(ex.planned.loadCapKg), previousWeight) : Number(ex.planned.loadCapKg);
+        step.weightKg = step.weightKg == null ? null : clampLoadToCap(step.weightKg, stepCap);
+        const rpeCap = Number(ex.planned.maxRpe) || 8;
+        if (Number(step.actualRpe) > rpeCap) {
+          recordForceLadderRpe(ex, stepIndex, step.actualRpe);
+        }
+        if (Number(step.actualRpe) > rpeCap
+            || (step.completed && Number(step.actualRpe) >= rpeCap && stepIndex < steps.length - 1)) {
+          ex.actual.ladderStopped = true;
+          ex.actual.ladderStopReason = 'rpe';
+        }
+      });
+      ex.actual.setsCompleted = ex.actual.ladderSteps.filter(step => step.completed).length;
+      ex.actual.completedSetIndices = ex.actual.ladderSteps
+        .map((step, i) => step.completed ? i : null).filter(i => i !== null);
+    });
     // Exercicio foco com super meta ativa: o peso real vem do painel (nao ha .ex-weight).
     // Se bloqueado (readiness), o peso ja foi capturado via .ex-weight acima.
     w.exercises.forEach(ex => {
@@ -3250,6 +3863,7 @@ const App = {
     // Finalizar = treino feito. Sem marcacao de series, assume execucao conforme o planejado
     // (o usuario so mexe nos toggles/peso quando fez DIFERENTE do plano).
     w.exercises.forEach(ex => {
+      if (Array.isArray(ex.planned.ladderSteps)) return;
       if (ex.actual.setsCompleted === 0) {
         ex.actual.setsCompleted = ex.planned.sets;
         ex.actual.completedSetIndices = Array.from({ length: ex.planned.sets }, (_, i) => i);
@@ -3275,7 +3889,12 @@ const App = {
       if (!sm || sm.blocked) return;
       const est = Workout.estimate1RM(sm.weight, sm.reps);
       sm.estimated1RM = est;
-      const rpe = sm.rpe || Workout.rpeCap(w.theme); // null => assumido = teto do tema
+      const rpeConfig = getSuperMetaRpeConfig(sm, w.theme);
+      const rpe = sm.rpe === null || sm.rpe === undefined || sm.rpe === '' ? rpeConfig.cap : Number(sm.rpe);
+      if (!isRpeWithinCap(rpe, rpeConfig.cap)) {
+        sm.rpeExceededCap = true;
+        return;
+      }
       const entry = Workout.recalibrate(config, ex.lift, est, w.theme, { weight: sm.weight, reps: sm.reps, rpe });
       if (entry) {
         // Compensacao registrada NO TREINO (sm.recalib) p/ o usuario ser ciente do amortecimento ao revisar
@@ -3324,6 +3943,26 @@ const App = {
     // Planejado vs realizado (exercicios de forca)
     const exRows = (w.exercises || []).map(ex => {
       const p = ex.planned, a = ex.actual;
+      if (Array.isArray(p.ladderSteps) && Array.isArray(a.ladderSteps)) {
+        const doneSteps = a.ladderSteps.filter(step => step.completed);
+        const doneReps = doneSteps.reduce((sum, step) => sum + Number(step.reps || 0), 0);
+        const plannedText = p.ladderSteps.map(step => `${step.reps}@RPE${step.rpeTarget}`).join(' → ');
+        const actualText = a.ladderSteps.map(step =>
+          `${step.reps}@${step.weightKg ?? '—'}kg/RPE${step.actualRpe ?? '—'}${step.completed ? ' ✓' : ''}`).join(' · ');
+        const safe = doneSteps.length === p.ladderSteps.length && !a.ladderStopped
+          && a.kneePain != null && a.kneePain < 3
+          && doneSteps.every(step => Number.isFinite(step.actualRpe) && step.actualRpe <= 8);
+        const painText = a.kneePain == null ? 'dor não registrada' : `joelho ${a.kneePain}/10`;
+        return `
+          <div class="ws-row">
+            <div class="ws-name">${ex.name}</div>
+            <div class="ws-cmp">
+              <span class="ws-plan">plano ${plannedText} · ${p.replaces?.totalReps || 12} reps · RPE ≤8</span>
+              <span class="ws-real ${safe ? 'ok' : 'low'}">${doneSteps.length}/${p.ladderSteps.length} etapas · ${doneReps}/${p.replaces?.totalReps || 12} reps · ${painText}${a.ladderStopped ? ' · PARAR' : ''}</span>
+              <span class="ws-real">${actualText}</span>
+            </div>
+          </div>`;
+      }
       const wgt = Number.isFinite(a.weight) ? a.weight : p.weight;
       const ok = a.setsCompleted >= p.sets && wgt >= p.weight;
       return `
@@ -3507,7 +4146,7 @@ const App = {
         let details = '';
         if (w.exercises && w.exercises.length) {
           details += w.exercises.map(ex => {
-            let line = `${ex.name}: ${ex.actual.setsCompleted||0}x${ex.planned.reps} @ ${ex.actual.weight||ex.planned.weight}kg`;
+            let line = formatHistoryExercise(ex);
             const sm = ex.actual.superMeta;
             if (sm && !sm.blocked && sm.estimated1RM) {
               const base = `⭐ ${sm.reps} reps @ ${sm.weight}kg${sm.rpe ? ' RPE'+sm.rpe : ''}`;

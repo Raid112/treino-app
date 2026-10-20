@@ -2,7 +2,7 @@
 
 > Doc vivo. Atualizado a cada rodada de teste. Não fechar a sessão enquanto houver caso ❌ ou ⏳.
 
-Última atualização: 2026-10-16
+Última atualização: 2026-10-19
 App: `index.html` (single-file, vanilla JS + localStorage)
 Servidor de teste: `python3 -m http.server 8123` → `http://localhost:8123/index.html`
 Ferramenta de teste: Node.js para lógica; UI Android ainda pendente.
@@ -184,3 +184,17 @@ A validade é verificada por data local e ano ISO, com remoção programada apó
 - Baseline Pages antes deste release: branch local/remota `master` no SHA `6c6f1a6117e2753bfe98d13ff3a818876cd0f889`; `index.html`, `sw.js` e `manifest.json` responderam HTTP 200 e eram byte-idênticos ao source; `corrida-plan.json` ainda respondeu 404. Nenhum valor de W2 foi publicado.
 - Publicação: commit `8b9584effb9715d8f0ddd285acbd3d6585fd96ed` em `master`; GitHub Pages build `built` para esse SHA. `node scripts/verify-pages.mjs --attempts 18 --delay-ms 10000` passou na tentativa 6: `index.html`, `sw.js`, `manifest.json` e `corrida-plan.json` responderam HTTP 200 e ficaram byte-idênticos ao checkout. SHA-256 publicado: index `56c68ebff0daa5f0cf0202f6ccc3395fb3761744f236c1ea5bc05d75325c39df`; sw `980b763d0e8118cad88a073c023deafdf3e328b07667e0eff11f29ec0af869d2`; manifest `9bf5aa8e72e0319f77c020e31db3d35d43e105196620548115d96c7540f57d8c`; corrida-plan `e400c4a40a8f63df6187b3d76371701ccc7dd95ce47a14df5a83858bcee5e28c`.
 - Limites/gates: o payload publicado permanece `pendente`, sem sessões ou minutos; a review W42 não tem `prescricao_corrida` e o contrato não tipa as zonas. Para fechar o plano, a review precisa fixar Z2 semanal e D2 Z3 exatos, com total dentro de 158,8–166,1 min; então D4 = Z2 semanal − 30 min e Caio aprova explicitamente. `adb devices -l` não listou aparelho, então refresh/worker/timer no PWA Android continua pendente. Nenhum cron foi configurado; a verificação é manual. DES-735 permanece `Fazendo`.
+
+## LoopReview LR4-2026-10-19-1001 — rodagem 2026-10-19
+
+- `node tests/bloco1.test.js` — exit 0 (`TODOS VERDES`).
+- `node tests/recalibragem.test.js` — **27 PASS / 0 FAIL**.
+- `node --test tests/running-plan-loader.test.mjs` — **4/4 PASS**; inclui regressão W43 em fase de corrida `base` enquanto W4 da força está em deload.
+- `node --test tests/sw-corrida-plan.test.mjs` — **5/5 PASS**; inclui limpeza do cache v23 ao ativar `treino-v24`.
+- `node --test tests/pages-verifier.test.mjs` — **6/6 PASS**; `git diff --check` — limpo.
+- TDD RED/GREEN: no `HEAD` isolado, a semana 5 retornou 1.850 kcal (sem trial ativo) ante 1.600 esperado, `Workout.rpeCap('Forca', 8)` retornou 9 ante teto 8 e o helper de gate da escadinha não existia. No worktree atual, os três probes (trial até 25/10, rejeição de RPE 9 na escadinha, cap S5=8) ficaram GREEN; `bloco1.test.js` registrou 190 PASS.
+- Smoke HTTP local: `scripts/verify-pages.mjs --url http://127.0.0.1:18723/ --attempts 1 --delay-ms 0` — os quatro assets (`index.html`, `sw.js`, `manifest.json`, `corrida-plan.json`) retornaram HTTP 200 e ficaram byte-idênticos ao source. Isso **não** verifica GitHub Pages público.
+- `loopreview_check.py check` para LR4 — `ok: true`, sem falhas (3.996 caracteres); `DES-695` continua bloqueada, sem ser tratada como aprovação de corrida.
+- A proposta humana aprovada para corrida é 4×3 min forte controlado / 2 min leve; o registro `FB-2026-10-19-1` autoriza trocar o Z3 contínuo por intervalado, informar minutos totais em Z2 e intervalos e elevar o volume sobre 143,1 min. A mensagem posterior autorizou publicar quando os gates passarem. O run LR4 ainda mantém `prescricao_corrida.status=pendente`, `sessoes=[]`, `totais=null` e contrato W43 com alvo 144,4 abaixo da faixa [158,8;166,1], sem split exato D1/D2/D4. O publicador em `--dry-run` com referências `FB-2026-10-19-1; Telegram DM reply 83317` bloqueou: `não é possível exportar prescrição pendente`; nenhum payload foi gravado.
+- Verificação pública independente em `https://raid112.github.io/treino-app/` retornou HTTP 200 para os quatro assets. O público coincide byte a byte com `HEAD` (index 177.173 B/SHA-256 `56c68ebf…`, sw 2.270 B/`980b763d…`, manifest 645 B/`9bf5aa8e…`, corrida-plan 395 B/`e400c4a4…`), mas não com o worktree: index local 210.345 B/SHA-256 `748b41ed…`; sw local 2.270 B/`592ea438…`. `node scripts/verify-pages.mjs` falhou na comparação pública em 1 tentativa.
+- Estado de release: sem novo commit, push ou deploy; alterações locais seguem no worktree. O workflow Pages `38924970141` está concluído com sucesso para o SHA de `HEAD` (`bf688f0c…`), mas isso não publicou as alterações não commitadas. Não instalar no Android; validação visual no aparelho continua pendente.

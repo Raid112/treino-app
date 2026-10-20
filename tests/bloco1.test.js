@@ -35,7 +35,7 @@ try { new Function(src); ok(true, `sintaxe do <script> (${src.length} bytes)`); 
 catch (e) { console.error('FAIL sintaxe: ' + e.message); process.exit(1); }
 
 // 2. Camada de dados isolada do DOM. localStorage minimo porque Storage e real.
-const cut = src.indexOf('// ========== CSV EXPORT ==========');
+const cut = src.indexOf('// ========== APP (Part 1 - Core + Home) ==========');
 const dataLayer = src.slice(0, cut > 0 ? cut : src.length);
 const _ls = new Map();
 globalThis.localStorage = {
@@ -59,7 +59,14 @@ try {
     'getElapsedRunSeconds: typeof getElapsedRunSeconds === "function" ? getElapsedRunSeconds : null, ' +
     'shouldResumeRunTimer: typeof shouldResumeRunTimer === "function" ? shouldResumeRunTimer : null, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup, ' +
     'formatTopSetPrescription: typeof formatTopSetPrescription === "function" ? formatTopSetPrescription : null, ' +
-    'renderExerciseSeriesOverview: typeof renderExerciseSeriesOverview === "function" ? renderExerciseSeriesOverview : null};')(sandbox);
+    'formatHistoryExercise: typeof formatHistoryExercise === "function" ? formatHistoryExercise : null, ' +
+    'renderExerciseSeriesOverview: typeof renderExerciseSeriesOverview === "function" ? renderExerciseSeriesOverview : null, ' +
+    'forceLadderStepGate: typeof forceLadderStepGate === "function" ? forceLadderStepGate : null, ' +
+    'isRpeWithinCap, getSuperMetaRpeConfig, ' +
+    'recordForceLadderRpe: typeof recordForceLadderRpe === "function" ? recordForceLadderRpe : null, ' +
+    'forceLadderPainGate: typeof forceLadderPainGate === "function" ? forceLadderPainGate : null, ' +
+    'renderForceLadderMarkup: typeof renderForceLadderMarkup === "function" ? renderForceLadderMarkup : null, ' +
+    'clampLoadToCap: typeof clampLoadToCap === "function" ? clampLoadToCap : null, Export};')(sandbox);
 } catch (e) { console.error('FAIL eval da camada de dados: ' + e.message); process.exit(1); }
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         Workout, Storage, getAccSets, validateRunningPlanPayload, setApprovedRunningPlan,
@@ -67,7 +74,11 @@ const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel,
         renderCurrentWeekRunningTargets, CURRENT_WEEK_RUNNING_TARGETS,
         getRunTimerTargetSeconds, isRunTargetReached, getElapsedRunSeconds, shouldResumeRunTimer, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
-        formatTopSetPrescription, renderExerciseSeriesOverview } = sandbox.__x;
+        formatTopSetPrescription, formatHistoryExercise, renderExerciseSeriesOverview,
+        forceLadderStepGate, forceLadderPainGate, renderForceLadderMarkup,
+        isRpeWithinCap, getSuperMetaRpeConfig,
+        recordForceLadderRpe,
+        clampLoadToCap, Export } = sandbox.__x;
 ok(true, 'camada de dados avaliada');
 ok(/const saved = Storage\.getInProgress\(\);\s*if \(saved\) \{\s*if \(refreshInProgressRunTarget\(saved\)\) Storage\.saveInProgress\(saved\);/.test(src),
    'boot migra e persiste alvos de corrida de treino salvo do bloco ativo');
@@ -149,82 +160,98 @@ if (typeof formatTopSetPrescription === 'function' && typeof renderExerciseSerie
      'renderer não altera a prescrição armazenada');
 }
 
-// 3. Plano alimentar B2: cut v9c a 1850 kcal em todas as semanas (loops/dieta/contrato.md, 30/09).
-ok(Object.keys(DIET_PLAN.weeks).length === B.semanas, 'DIET_PLAN cobre as 6 semanas');
-const cutDiet = getDietWeekPlan(1, {});
-ok(Object.values(DIET_PLAN.weeks).every(w => w === 'cut'), 'B2 nao tem diet break');
-ok(cutDiet.phase === 'cut' && cutDiet.totalCalories === 1850,
-   'W1 usa cut v9c a 1850 kcal');
-ok(cutDiet.meals.every(m => m.calories == null && m.share == null),
-   'nao inventa rateio de kcal por refeicao que o contrato nao define');
-ok(cutDiet.protein_g === 205 && cutDiet.fat_g === 60
-   && cutDiet.caloriesForCarbsAtFloors === 490 && cutDiet.carbsAtFloors_g === 122.5,
-   'orcamento de carbo respeita os pisos diarios P/G e fecha as 1850 kcal');
-const renderedDiet = renderDietPlanMarkup(cutDiet);
+// 3. Plano alimentar B2: override temporário aprovado sobre o contrato v9d.
+ok(Object.keys(DIET_PLAN.weeks).length === B.semanas, 'DIET_PLAN mantém o mapa de 6 semanas');
+const trialDate = new Date(2026, 9, 19, 12);
+const trialDiet = getDietWeekPlan(4, {}, trialDate);
+ok(trialDiet.phase === 'cut' && trialDiet.version === '2026-10-19-trial-1600'
+   && trialDiet.totalCalories === 1600 && trialDiet.approximateCalories === true,
+   'W4 aplica apenas o teste temporário de aproximadamente 1600 kcal/dia');
+ok(trialDiet.trialStart === '2026-10-19' && trialDiet.trialEnd === '2026-10-25'
+   && trialDiet.trialActive === true,
+   'teste dietético fica limitado a 19–25/10/2026');
+ok(trialDiet.protein_g === 205 && trialDiet.fat_g === 60
+   && trialDiet.carbohydrateTarget_g === 60 && trialDiet.carbohydrateApproximate === true,
+   'meta diária registra P≥205 g, G≥60 g e C≈60 g sem rateio');
+ok(trialDiet.caloriesForCarbsAtFloors == null && trialDiet.carbsAtFloors_g == null,
+   'não transforma a divergência da tabela em saldo exato de carbo');
+ok(trialDiet.meals.every(m => m.calories == null && m.share == null && m.carbs_g == null),
+   'não inventa kcal ou macros por refeição');
+const renderedDiet = renderDietPlanMarkup(trialDiet);
+ok(renderedDiet.includes('≈1.600 kcal/dia')
+   && renderedDiet.includes('P ≥205 g/dia')
+   && renderedDiet.includes('G ≥60 g/dia')
+   && renderedDiet.includes('C ≈60 g/dia')
+   && renderedDiet.includes('contrato base v9d')
+   && renderedDiet.includes('1.700 kcal/dia'),
+   'tela mostra as metas diárias aproximadas e identifica o contrato base v9d');
+ok(renderedDiet.includes('~20 kcal'),
+   'tela mantém a divergência de aproximadamente 20 kcal informada na proposta');
+ok(renderedDiet.includes('proposta por refeição aprovada'),
+   'tela atribui a divergência à proposta aprovada, não a um recálculo do app');
+ok(renderedDiet.includes('não recalcula') && renderedDiet.includes('nem afirma fechamento exato'),
+   'tela explicita que macros e calorias não fecham com exatidão');
+ok(!renderedDiet.includes('restam 240 kcal'),
+   'tela não inventa saldo de carbo a partir da divergência');
 ok(renderedDiet.includes('Sem rateio de kcal/carbo por refeição')
-   && renderedDiet.includes('30 g de whey é peso do pó')
-   && renderedDiet.includes('mais carbo no pré significa menos no pós')
-   && renderedDiet.includes('restam 490 kcal (≈122,5 g de carboidrato)'),
-   'tela explica a distribuição pré/pós e mantém o orçamento diário');
-ok(!renderedDiet.includes('C ~60 g') && !renderedDiet.includes('C ~80 g'),
-   'tela não inventa alvos de carbo por refeição');
-ok(cutDiet.meals.every(m => m.carbs_g == null),
-   'cut mantém carbo sem rateio por refeição');
-const meal = id => cutDiet.meals.find(item => item.id === id);
+   && renderedDiet.includes('fora do volume de corrida'),
+   'tela mantém a distribuição diária e a bicicleta fora da corrida');
+ok(renderedDiet.includes('contrato base v9d: 1.700 kcal/dia')
+   && renderedDiet.includes('Fora da janela de teste, volta ao alvo base.'),
+   'tela explicita a vigência temporária do override e o retorno ao contrato-base');
+const meal = id => trialDiet.meals.find(item => item.id === id);
 const preMeal = meal('pre_treino');
 const postMeal = meal('pos_treino');
-ok(JSON.stringify(preMeal.proteinRange_g) === '[25,35]'
-   && JSON.stringify(postMeal.proteinRange_g) === '[25,35]',
-   'pré e pós têm guia de 25–35 g de proteína por refeição');
-ok((renderedDiet.match(/P 25–35 g · guia/g) || []).length === 2,
-   'renderer mostra a faixa de proteína nos dois cards do entorno do treino');
-ok(preMeal.calories == null && postMeal.calories == null
-   && preMeal.carbs_g == null && postMeal.carbs_g == null,
-   'guia de proteína não cria rateio de kcal/carbo');
-ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite'
-   && /rótulo|rotulo/i.test(meal('cafe_manha').uncertainty),
-   'cafe informa quantidade e ressalva macros dependentes do leite/rótulo');
-ok(meal('almoco').quantity === '400 g de mistura + 400 g de vegetais'
+ok(preMeal.proteinTarget_g === 30 && postMeal.proteinTarget_g === 30
+   && preMeal.carbohydrateTarget_g === 10 && postMeal.carbohydrateTarget_g === 10,
+   'pré e pós têm metas aproximadas individuais P≈30 g e C≈10 g');
+ok((renderedDiet.match(/P ≈30 g · C ≈10 g/g) || []).length === 2,
+   'renderer exibe as metas aproximadas no pré e no pós');
+ok(preMeal.calories == null && postMeal.calories == null,
+   'metas pré/pós não criam rateio de kcal por refeição');
+ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite',
+   'café da manhã permanece exatamente como estava');
+ok(meal('almoco').quantity === '350 g de carne/mistura + 400 g de vegetais'
    && /composição|composicao/.test(meal('almoco').uncertainty),
-   'almoco informa porcoes sem fingir medir macros da mistura');
-ok(/2 copos/.test(meal('cafe_tarde').quantity) && /30 g/.test(meal('cafe_tarde').quantity)
-   && /60 g\/dia/.test(meal('cafe_tarde').quantity)
-   && /rótulo|rotulo/i.test(meal('cafe_tarde').uncertainty),
-   'cafe da tarde informa 2 copos, 30 g cada, 60 g/dia e depende do rótulo');
-ok(/25–35 g de proteína/.test(meal('pre_treino').quantity)
-   && /25–35 g de proteína/.test(meal('pos_treino').quantity)
-   && /rótulo|rotulo/i.test(meal('pre_treino').quantity)
-   && /rótulo|rotulo/i.test(meal('pos_treino').quantity),
-   'pre e pos mostram faixa de proteina e leitura por rotulo');
-ok(DIET_PLAN.weekChanges[1].kind === 'change'
-   && /1850 kcal/.test(DIET_PLAN.weekChanges[1].text)
-   && /v9c/.test(DIET_PLAN.weekChanges[1].text)
+   'almoço atualiza a porção sem estimar macros da mistura');
+ok(meal('cafe_tarde').quantity === 'Café preto + 200 ml de leite Italac semidesnatado'
+   && meal('cafe_tarde').labelNutrition.kcal === 80
+   && meal('cafe_tarde').labelNutrition.protein_g === 6.2
+   && meal('cafe_tarde').labelNutrition.fat_g === 2
+   && meal('cafe_tarde').labelNutrition.carbohydrate_g === 9.2,
+   'café da tarde usa a porção de 200 ml e valores fornecidos do rótulo Italac');
+ok(renderedDiet.includes('80 kcal') && renderedDiet.includes('P 6,2 g')
+   && renderedDiet.includes('G 2 g') && renderedDiet.includes('C 9,2 g'),
+   'tela identifica os valores de rótulo sem inferir outras refeições');
+ok(DIET_PLAN.weekChanges[4].kind === 'change'
+   && /teste de 7 dias/i.test(DIET_PLAN.weekChanges[4].text)
+   && /30 min de Z2 em bicicleta/.test(DIET_PLAN.weekChanges[4].text)
    && html.includes('diet-plan-change'),
-   'W1 do B2 destaca a entrada no cut v9c');
-const cutS2 = getDietWeekPlan(2, {});
-ok(cutS2.phase === 'cut' && cutS2.totalCalories === 1700
-   && cutS2.protein_g === 205 && cutS2.fat_g === 60,
-   'S2 mostra alvo operacional de 1700 kcal com os pisos P/G');
-ok(cutS2.caloriesForCarbsAtFloors === 340 && cutS2.carbsAtFloors_g === 85,
-   'S2 calcula somente o saldo diário de carbo nos pisos, sem rateio por refeição');
-const renderedS2Diet = renderDietPlanMarkup(cutS2);
-ok(renderedS2Diet.includes('Semana 2 (B2/S2)')
-   && renderedS2Diet.includes('+30 min de Z2 em bicicleta/ergométrica')
-   && renderedS2Diet.includes('fora do volume de corrida'),
-   'S2 exibe a nota de bicicleta separada do volume de corrida');
-const cutW3 = getDietWeekPlan(3, { dietTdeeObserved: 2650 });
-ok(cutW3.phase === 'cut' && cutW3.totalCalories === 1850 && /1850/.test(cutW3.calorieRule),
-   'W3 permanece no contrato fixo de 1850, nao TDEE − 550');
-ok(cutW3.meals.every(m => m.calories == null),
-   'W3 nao mostra kcal por refeicao sem rateio no contrato');
-ok(getDietWeekPlan(1, {}).totalCalories === 1850
+   'W4 destaca o teste e mantém a bicicleta Z2 semanal separada da corrida');
+const expiredDiet = getDietWeekPlan(4, {}, new Date(2026, 9, 26, 12));
+ok(expiredDiet.totalCalories === 1700 && expiredDiet.trialActive === false && expiredDiet.version === 'v9d'
+   && expiredDiet.calorieRule.includes('1.700'),
+   'após 25/10, o teste termina e volta ao contrato-base v9d de 1700 kcal');
+const lastTrialDay = getDietWeekPlan(4, {}, new Date(2026, 9, 25, 23, 59));
+ok(lastTrialDay.totalCalories === 1600 && lastTrialDay.trialActive === true
+   && lastTrialDay.trialEnd === '2026-10-25',
+   'o teste permanece ativo durante todo o sétimo dia e expira depois dele');
+const futureDiet = getDietWeekPlan(5, {}, new Date(2026, 9, 26, 12));
+ok(futureDiet.totalCalories === 1700 && futureDiet.meals.length > 0
+   && futureDiet.version === 'v9d',
+   'semana fora do ensaio usa o contrato-base sem herdar porções ou macros do teste');
+const trialAcrossWeekAdvance = getDietWeekPlan(5, {}, new Date(2026, 9, 20, 12));
+ok(trialAcrossWeekAdvance.totalCalories === 1700
+   && trialAcrossWeekAdvance.trialActive === false
+   && trialAcrossWeekAdvance.version === 'v9d'
+   && !renderDietPlanMarkup(trialAcrossWeekAdvance).includes('Teste de 7 dias'),
+   'o teste temporário da W4 não reaparece na W5 antes do fim da janela');
+ok(DAY_DEFS.filter(d => d.type === 'running' || d.type === 'combined').length === 3
    && Object.keys(WEEK_DATA).length === B.semanas,
-   'override de S2 nao altera W1 nem a prescricao de forca');
-ok(DAY_DEFS.filter(d => d.type === 'running' || d.type === 'combined').length === 3,
-   'nota de bicicleta nao cria nem soma uma sessao de corrida');
-const invalidWeek = getDietWeekPlan(0, {});
-ok(invalidWeek.phase === 'cut' && invalidWeek.totalCalories === 1850 && invalidWeek.week === 1,
-   'semana invalida nao ressuscita o break encerrado');
+   'bicicleta da dieta não cria sessão de corrida nem altera semanas de força');
+const invalidWeek = getDietWeekPlan(0, {}, trialDate);
+ok(invalidWeek.week === 1 && invalidWeek.totalCalories === 1700,
+   'semana inválida cai no contrato-base v9d sem aplicar o teste');
 
 // 4. O plano bate com o Esqueleto
 ok(Object.keys(WEEK_DATA).length === B.semanas, `WEEK_DATA tem ${B.semanas} semanas`);
@@ -354,8 +381,8 @@ if (planContractHelpersAvailable) {
       { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 80, fc_cap: 150 }
     ],
     totais: { total_semanal_min: 150, total_z2_min: 110, total_z3_min: 40,
-      agachamento_z2_min: 30, long_run_z2_min: 80 },
-    regra_long_run: 'total_z2_min - agachamento_z2_min',
+      total_intervalo_min: 0, agachamento_z2_min: 30, terra_z2_min: 0, long_run_z2_min: 80 },
+    regra_long_run: 'total_z2_min - agachamento_z2_min - terra_z2_min',
     long_minimo_min: 30, long_minimo_excecao: null,
     excecao_deload: { aplica: false }
   };
@@ -374,9 +401,14 @@ if (planContractHelpersAvailable) {
   approvalWithoutZone.approval.approved_at = '2026-10-12T12:00:00';
   ok(!validateRunningPlanPayload(approvalWithoutZone).ok, 'aprovação sem fuso horário é rejeitada');
   const publicSeed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corrida-plan.json'), 'utf8'));
-  ok(publicSeed.status === 'pendente' && publicSeed.sessoes.length === 0
-     && !validateRunningPlanPayload(publicSeed).ok,
-     'artefato publicado inicial fica pendente e não inventa alvos semanais');
+  ok(publicSeed.status === 'pronto' && publicSeed.semana_iso === '2026-W43'
+     && publicSeed.approval?.state === 'approved'
+     && validateRunningPlanPayload(publicSeed).ok
+     && publicSeed.totais?.total_semanal_min === 158.8
+     && publicSeed.totais?.total_z2_min === 146.8
+     && publicSeed.totais?.total_intervalo_min === 12
+     && publicSeed.totais?.long_run_z2_min === 63,
+     'artefato aprovado W43 valida total, intervalos, Z2 e Long Run explicitamente');
 
   ok(setApprovedRunningPlan(syntheticRunPlan), 'payload sintético válido aceito pelo leitor do PWA');
   const planDate = new Date(2026, 9, 12, 12);
@@ -400,7 +432,69 @@ if (planContractHelpersAvailable) {
      'contrato antigo ou de outra semana do bloco não alimenta D4');
   const wrongPhasePlan = { ...syntheticRunPlan, fase: 'deload' };
   ok(!validateRunningPlanPayload(wrongPhasePlan).ok,
-     'fase deload não pode ser publicada para semana 3 de base');
+     'fase deload exige distribuição própria, não só o enum');
+  const invalidPhase = { ...syntheticRunPlan, fase: 'teste' };
+  ok(!validateRunningPlanPayload(invalidPhase).ok,
+     'fase desconhecida continua rejeitada');
+  const malformedHash = structuredClone(syntheticRunPlan);
+  malformedHash.source.prep_sha256 = 'not-a-sha256';
+  ok(!validateRunningPlanPayload(malformedHash).ok,
+     'hash de proveniência malformado continua rejeitado');
+  const week4BasePlan = {
+    ...syntheticRunPlan,
+    semana_iso: '2026-W43', semana_bloco: 4, fase: 'base',
+    faixa_volume_aprovada_min: [158.8, 166.1],
+    sessoes: [
+      { dia_app: 'D1', papel: 'agachamento', zona: 'Z2', min: 30, fc_cap: 150 },
+      { dia_app: 'D2', papel: 'terra', zona: 'Z3', min: 40, fc_cap: 162 },
+      { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 91, fc_cap: 150 }
+    ],
+    totais: { total_semanal_min: 161, total_z2_min: 121, total_z3_min: 40,
+      total_intervalo_min: 0, agachamento_z2_min: 30, terra_z2_min: 0, long_run_z2_min: 91 }
+  };
+  ok(WEEK_DATA[4].deload === true && validateRunningPlanPayload(week4BasePlan).ok,
+     'W43 aceita fase de corrida base embora a semana de força 4 seja deload');
+  const w43IntervalPlan = {
+    ...syntheticRunPlan,
+    semana_iso: '2026-W43', semana_bloco: 4, fase: 'base',
+    faixa_volume_aprovada_min: [158.8, 166.1],
+    sessoes: [
+      { dia_app: 'D1', papel: 'agachamento', zona: 'Z2', min: 30, fc_cap: 150, planned_date: null },
+      { dia_app: 'D2', papel: 'terra', zona: 'intervalado', min: 65.8, fc_cap: 162, planned_date: null,
+        segmentos: [
+          { tipo: 'continuo', min: 15, zona: 'Z2', fc_cap: 150 },
+          { tipo: 'intervalos', repeticoes: 4,
+            forte: { min: 3, zona: 'intervalo', fc_cap: 162 },
+            recuperacao: { min: 2, zona: 'Z2', fc_cap: 150 } },
+          { tipo: 'continuo', min: 30.8, zona: 'Z2', fc_cap: 150 }
+        ] },
+      { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 63, fc_cap: 150, planned_date: null }
+    ],
+    totais: { total_semanal_min: 158.8, total_z2_min: 146.8, total_z3_min: 0,
+      total_intervalo_min: 12, agachamento_z2_min: 30, terra_z2_min: 53.8, long_run_z2_min: 63 },
+    regra_long_run: 'total_z2_min - agachamento_z2_min - terra_z2_min'
+  };
+  ok(validateRunningPlanPayload(w43IntervalPlan).ok,
+     'consumer aceita W43 com intervalos tipados e recuperações incluídas no total Z2');
+  const badW43Recovery = structuredClone(w43IntervalPlan);
+  badW43Recovery.sessoes[1].segmentos[1].recuperacao.zona = 'intervalo';
+  ok(!validateRunningPlanPayload(badW43Recovery).ok,
+     'consumer rejeita recuperações sem zona Z2 explicitamente tipada');
+  const badW43LongRun = structuredClone(w43IntervalPlan);
+  badW43LongRun.sessoes[2].min = 116.8;
+  badW43LongRun.totais.long_run_z2_min = 116.8;
+  ok(!validateRunningPlanPayload(badW43LongRun).ok,
+     'consumer rejeita D4 calculado sem subtrair Z2 do aquecimento/recuperações/final de D2');
+  const w43Date = new Date(2026, 9, 19, 12);
+  ok(setApprovedRunningPlan(w43IntervalPlan), 'payload W43 sintético fica disponível ao consumer');
+  const w43D2 = Workout.generateWorkout({ ...cfg, currentWeek: 4 }, 2, w43Date);
+  const w43D2Label = runLabel(DAY_DEFS[1], WEEK_DATA[4], 4, w43Date);
+  ok(w43D2.running.target.min === 65.8 && w43D2.running.target.zone === 'intervalado'
+     && w43D2.running.target.segments.length === 3
+     && w43D2Label.includes('15 min Z2') && w43D2Label.includes('4×(3 min forte controlado / 2 min leve Z2)')
+     && w43D2Label.includes('30.8 min Z2') && !/pace\s*\d/i.test(w43D2Label),
+     'consumer mostra os segmentos completos de D2 sem criar pace-alvo');
+  ok(setApprovedRunningPlan(syntheticRunPlan), 'teste W43 restaura o payload sintético anterior');
 
   ok(typeof isRunTargetReached === 'function'
      && isRunTargetReached(4801, 4800.6)
@@ -416,7 +510,7 @@ if (planContractHelpersAvailable) {
       { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 30, fc_cap: 150 }
     ],
     totais: { total_semanal_min: 75, total_z2_min: 75, total_z3_min: 0,
-      agachamento_z2_min: 20, long_run_z2_min: 30 },
+      total_intervalo_min: 0, agachamento_z2_min: 20, terra_z2_min: 25, long_run_z2_min: 30 },
     regra_long_run: 'seguir_distribuicao_exata_da_review',
     excecao_deload: { aplica: true, regra: 'seguir_distribuicao_exata_da_review' }
   };
@@ -428,7 +522,7 @@ if (planContractHelpersAvailable) {
     sessoes: syntheticDeload.sessoes.map(session => session.dia_app === 'D4'
       ? { ...session, min: 25 } : session),
     totais: { total_semanal_min: 70, total_z2_min: 70, total_z3_min: 0,
-      agachamento_z2_min: 20, long_run_z2_min: 25 }
+      total_intervalo_min: 0, agachamento_z2_min: 20, terra_z2_min: 25, long_run_z2_min: 25 }
   };
   ok(!validateRunningPlanPayload(blankDeloadException).ok,
      'exceção de deload em branco não libera Long Run abaixo do piso');
@@ -524,13 +618,11 @@ if (typeof refreshInProgressRunTarget === 'function') {
 ok(diasForca.length === 4 && B.forca.sessoes[1] === 4,
    `divisao restaurada = 4 dias de barra (bloco amplo p/ ${JSON.stringify(B.forca.sessoes)})`);
 
-// Top set perto da falha, generalizado no B2 pros 3 lifts (S2 terra, S3 supino,
-// S5 agacho "da vez"): o lift da vez leva RPE9/90%, os outros dois RPE8/85%, cada
-// um no dia em que ELE e primary. WEEK_DATA[week].topSets agora e array (nao mais
-// o campo singular `topSet` do B1) — ver Workout.initTopSet.
-const daVez = { 2: 'deadlift', 3: 'bench', 5: 'squat' };
+// Top sets continuam apenas em S2/S3. S5 usa uma escadinha de agachamento que
+// substitui o 3×4, com carga em retenção e sem top set extra.
+const daVez = { 2: 'deadlift', 3: 'bench' };
 const primaryDay = { squat: 1, bench: 3, deadlift: 5 };
-for (const wk of [2, 3, 5]) {
+for (const wk of [2, 3]) {
   for (const lift of ['squat', 'bench', 'deadlift']) {
     const day = primaryDay[lift];
     const w = Workout.generateWorkout({ ...cfg, currentWeek: wk }, day);
@@ -544,8 +636,8 @@ for (const wk of [2, 3, 5]) {
   }
 }
 
-// Cada semana de forca leva exatamente 3 top sets (1 por lift, so no dia primary).
-for (const wk of [2, 3, 5]) {
+// Cada semana com top set leva exatamente 3 (1 por lift, só no dia primary).
+for (const wk of [2, 3]) {
   let topSetCount = 0;
   for (let d = 1; d <= DAY_DEFS.length; d++) {
     const w = Workout.generateWorkout({ ...cfg, currentWeek: wk }, d);
@@ -559,7 +651,7 @@ const w2d2 = Workout.generateWorkout({ ...cfg, currentWeek: 2 }, 2);
 const w2d2Deadlift = w2d2.exercises.find(e => e.lift === 'deadlift');
 ok(w2d2Deadlift && !w2d2Deadlift.actual.topSet, 'D2 (deadlift secondary) nao ganha top set mesmo em semana de top set');
 
-// Semanas sem top set: S1 (hipertrofia), S4 (deload), S6 (taper/teste 5K).
+// Semanas sem top set: S1, S4 e S6. S5 preserva dois top sets RPE8 em bench/DL.
 for (const wk of [1, 4, 6]) {
   let topSetCount = 0;
   for (let d = 1; d <= DAY_DEFS.length; d++) {
@@ -570,6 +662,203 @@ for (const wk of [1, 4, 6]) {
   ok(topSetCount === 0, `S${wk} nao tem top set (achou ${topSetCount})`);
 }
 ok(erros === 0, 'nenhum top set vazou pra semana errada');
+
+const w5d1BeforeLadder = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 1);
+const w5d3BeforeLadder = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 3);
+const w5d5BeforeLadder = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 5);
+const w5SquatBeforeLadder = w5d1BeforeLadder.exercises.find(e => e.lift === 'squat');
+const w5BenchBeforeLadder = w5d3BeforeLadder.exercises.find(e => e.lift === 'bench');
+const w5DeadliftBeforeLadder = w5d5BeforeLadder.exercises.find(e => e.lift === 'deadlift');
+const w5TopSetCount = [w5d1BeforeLadder, w5d3BeforeLadder, w5d5BeforeLadder]
+  .flatMap(w => w.exercises).filter(e => e.actual.topSet).length;
+ok(w5TopSetCount === 2 && !w5SquatBeforeLadder.actual.topSet
+   && w5BenchBeforeLadder.actual.topSet.rpeTarget === 8
+   && w5DeadliftBeforeLadder.actual.topSet.rpeTarget === 8,
+   'S5 remove apenas o top set de agachamento e preserva bench/terra em RPE8');
+ok(w5BenchBeforeLadder.actual.superMeta && w5DeadliftBeforeLadder.actual.superMeta,
+   'super meta normal de supino e terra continua ativa em S5');
+ok(w5BenchBeforeLadder.actual.superMeta.rpeCap === 8
+   && w5DeadliftBeforeLadder.actual.superMeta.rpeCap === 8
+   && Workout.rpeCap('Forca') === 9
+   && Workout.rpeCap('Forca', WEEK_DATA[5].rpeCap) === 8,
+   'S5 limita a super-meta de supino/terra a RPE 8 sem mudar o cap de outras semanas');
+const s5RpeUi = getSuperMetaRpeConfig(w5BenchBeforeLadder.actual.superMeta, 'Forca');
+ok(s5RpeUi.cap === 8 && s5RpeUi.options.join(',') === '7,8'
+   && s5RpeUi.range === '7-8' && isRpeWithinCap(8, s5RpeUi.cap)
+   && !isRpeWithinCap(9, s5RpeUi.cap) && !isRpeWithinCap(null, s5RpeUi.cap),
+   'UI da super-meta S5 só oferece RPE até 8 e a validação rejeita RPE 9');
+
+// S5: escadinha somente no agachamento primário; substitui 3×4 por 12 reps,
+// limita cargas ao trabalho anterior do ciclo e exige confirmação sem dor.
+ok(WEEK_DATA[5].rpeCap === 8 && WEEK_DATA[5].forceLadder.loadPolicy === 'no_increase',
+   'S5 tem teto de esforço 8 e a escadinha não supera a carga de trabalho anterior');
+ok(JSON.stringify(WEEK_DATA[5].forceLadder.steps) === JSON.stringify([
+  { reps:5, rpeTarget:6 }, { reps:4, rpeTarget:7 }, { reps:3, rpeTarget:8 }
+]) && WEEK_DATA[5].forceLadder.lift === 'squat'
+   && WEEK_DATA[5].forceLadder.replaces.sets === 3
+   && WEEK_DATA[5].forceLadder.replaces.reps === 4
+   && WEEK_DATA[5].forceLadder.replaces.totalReps === 12,
+   'S5 escadinha 5@6→4@7→3@8 substitui exatamente 3×4');
+
+const savedWorkoutHistory = _ls.get(Storage.KEYS.WORKOUTS);
+const priorWorkouts = [
+  { date:'2026-10-12', dayNum:1, week:3, cycleId:'test-cycle', completed:true,
+    exercises:[{ lift:'squat', type:'primary', planned:{weight:100}, actual:{weight:100, setsCompleted:3,
+      topSet:{weight:200, done:true} } }] },
+  { date:'2026-10-12', dayNum:3, week:3, cycleId:'test-cycle', completed:true,
+    exercises:[
+      { lift:'bench', type:'primary', planned:{weight:80}, actual:{weight:80, setsCompleted:3} },
+      { lift:'squat', type:'secondary', planned:{weight:95}, actual:{weight:95, setsCompleted:2} }
+    ] },
+  { date:'2026-10-12', dayNum:5, week:3, cycleId:'test-cycle', completed:true,
+    exercises:[
+      { lift:'deadlift', type:'primary', planned:{weight:140}, actual:{weight:140, setsCompleted:3} },
+      { lift:'bench', type:'secondary', planned:{weight:70}, actual:{weight:70, setsCompleted:2} }
+    ] },
+  { date:'2026-10-19', dayNum:1, week:4, cycleId:'test-cycle', completed:true,
+    exercises:[{ lift:'squat', type:'primary', planned:{weight:500}, actual:{weight:500, setsCompleted:2} }] },
+  { date:'2026-10-13', dayNum:1, week:3, cycleId:'old-cycle', completed:true,
+    exercises:[{ lift:'squat', type:'primary', planned:{weight:400}, actual:{weight:400, setsCompleted:3} }] },
+  { date:'2026-10-14', dayNum:1, week:3, cycleId:'test-cycle', completed:false,
+    exercises:[{ lift:'squat', type:'primary', planned:{weight:300}, actual:{weight:300, setsCompleted:3} }] }
+];
+_ls.set(Storage.KEYS.WORKOUTS, JSON.stringify(priorWorkouts));
+const w5d1Ladder = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 1);
+const w5d1Squat = w5d1Ladder.exercises.find(e => e.lift === 'squat');
+ok(w5d1Squat && w5d1Squat.planned.ladderSteps.length === 3
+   && w5d1Squat.planned.weight === 100 && w5d1Squat.planned.loadCapKg === 100
+   && w5d1Squat.planned.loadSourceWeek === 3 && !w5d1Squat.planned.loadBlocked,
+   'S5 agachamento primário não supera a última carga de trabalho do ciclo');
+ok(w5d1Squat && w5d1Squat.actual.superMeta === null && w5d1Squat.actual.topSet === null,
+   'S5 agachamento não recebe super meta nem top set extra');
+ok(w5d1Ladder.exercises.filter(e => e.lift === 'squat').length === 1
+   && w5d1Ladder.exercises.every(e => !e.planned.ladderSteps || e.lift === 'squat')
+   && Number.isFinite(w5d1Squat.planned.loadCapKg)
+   && w5d1Squat.planned.weight <= w5d1Squat.planned.loadCapKg,
+   'somente agachamento primário usa a escadinha e respeita o teto histórico');
+const w5d3 = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 3);
+const w5d5 = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 5);
+ok(w5d3.exercises.every(e => !e.planned.ladderSteps)
+   && w5d5.exercises.every(e => !e.planned.ladderSteps),
+   'nenhuma escadinha de supino/terra ou squat secundário em S5');
+ok(forceLadderPainGate(w5d1Ladder, null).required
+   && !forceLadderPainGate(w5d1Ladder, null).ok
+   && forceLadderPainGate(w5d1Ladder, 2).ok
+   && !forceLadderPainGate(w5d1Ladder, 3).ok
+   && forceLadderPainGate(w5d5, null).ok,
+   'porta de joelho exige dor <3/10 na escadinha e não afeta os outros dias');
+ok(typeof forceLadderStepGate === 'function' && typeof renderForceLadderMarkup === 'function'
+   && typeof clampLoadToCap === 'function',
+   'helpers de escadinha e teto de carga estão disponíveis');
+if (typeof forceLadderStepGate === 'function' && typeof renderForceLadderMarkup === 'function'
+    && typeof clampLoadToCap === 'function') {
+  const steps = [
+    { reps:5, rpeTarget:6, weightKg:100, actualRpe:6, kneePain:0, completed:true },
+    { reps:4, rpeTarget:7, weightKg:100, actualRpe:7, kneePain:0, completed:false },
+    { reps:3, rpeTarget:8, weightKg:100, actualRpe:null, kneePain:null, completed:false }
+  ];
+  ok(forceLadderStepGate(steps, 1, 100).ok,
+     'passo seguinte só libera após registrar o anterior em carga não crescente');
+  ok(!forceLadderStepGate(steps, 2, 100).ok,
+     'escadinha não permite pular etapa');
+  const rpeStop = structuredClone(steps);
+  rpeStop[0].actualRpe = 8;
+  ok(!forceLadderStepGate(rpeStop, 1, 100).ok,
+     'RPE 8 em etapa anterior interrompe as etapas seguintes');
+  const rpeAboveCap = structuredClone(steps);
+  rpeAboveCap[1].actualRpe = 9;
+  ok(!forceLadderStepGate(rpeAboveCap, 1, 100).ok,
+     'escadinha rejeita RPE real acima do teto 8 na própria etapa');
+  const invalidRpeWorkout = structuredClone(w5d1Squat);
+  invalidRpeWorkout.actual.kneePain = 0;
+  invalidRpeWorkout.actual.ladderSteps[0] = {
+    ...invalidRpeWorkout.actual.ladderSteps[0], weightKg:100, actualRpe:7,
+    kneePain:0, completed:true
+  };
+  const rejectedRpe = recordForceLadderRpe(invalidRpeWorkout, 0, '9');
+  ok(!rejectedRpe.ok && rejectedRpe.reason === 'rpe_above_cap'
+     && invalidRpeWorkout.actual.ladderSteps[0].actualRpe === null
+     && invalidRpeWorkout.actual.ladderSteps[0].completed === false
+     && invalidRpeWorkout.actual.ladderStopped === true
+     && invalidRpeWorkout.actual.ladderStopReason === 'rpe'
+     && invalidRpeWorkout.actual.setsCompleted === 0,
+     'registro direto rejeita RPE 9, não o persiste nem credita a etapa');
+  ok((src.match(/recordForceLadderRpe\(/g) || []).length >= 5,
+     'entrada, conclusão por checkbox e finalização usam o mesmo gate de RPE');
+  const painStop = structuredClone(steps);
+  painStop[0].kneePain = 3;
+  ok(!forceLadderStepGate(painStop, 1, 100).ok,
+     'dor no joelho ≥3/10 interrompe as etapas seguintes');
+  const loadIncrease = structuredClone(steps);
+  loadIncrease[1].weightKg = 102.5;
+  ok(!forceLadderStepGate(loadIncrease, 1, 100).ok,
+     'nenhuma etapa pode exceder o teto de carga anterior');
+  ok(clampLoadToCap(102.5, 100) === 100 && clampLoadToCap(97.5, 100) === 97.5,
+     'entrada de carga é limitada ao teto sem arredondar para cima');
+  const ladderHtml = renderForceLadderMarkup(w5d1Squat, 0);
+  ok(ladderHtml.includes('5 reps @ RPE 6') && ladderHtml.includes('4 reps @ RPE 7')
+     && ladderHtml.includes('3 reps @ RPE 8') && ladderHtml.includes('100 kg')
+     && ladderHtml.includes('12 reps') && ladderHtml.includes('S3')
+     && ladderHtml.includes('deloads excluídos'),
+     'renderer mostra etapas, teto, semana-fonte e exclusão explícita do deload');
+  ok(ladderHtml.includes('max="8"') && ladderHtml.includes('placeholder="0–8"'),
+     'campo RPE da escadinha expõe o teto S5 de 8');
+}
+ok(typeof formatHistoryExercise === 'function' && /formatHistoryExercise\(ex\)/.test(src),
+   'histórico usa um helper próprio para representar treino e escadinha');
+if (typeof formatHistoryExercise === 'function') {
+  const historyLadder = structuredClone(w5d1Squat);
+  historyLadder.actual.kneePain = 0;
+  historyLadder.actual.ladderSteps[0] = {
+    reps:5, rpeTarget:6, weightKg:100, actualRpe:6, kneePain:0, completed:true
+  };
+  historyLadder.actual.setsCompleted = 1;
+  const historyText = formatHistoryExercise(historyLadder);
+  const historyLower = historyText.toLowerCase();
+  ok(historyLower.includes('escadinha 1/3') && historyText.includes('5/12 reps')
+     && historyText.includes('5 reps @ 100 kg') && historyText.includes('RPE real 6')
+     && historyText.includes('substitui 3×4') && !historyText.includes('1x4 @ 100kg'),
+     'histórico mostra etapas/RPE reais e não reinterpreta a escadinha como 1×4');
+  const missingHistorySteps = structuredClone(w5d1Squat);
+  delete missingHistorySteps.actual.ladderSteps;
+  const missingHistoryText = formatHistoryExercise(missingHistorySteps);
+  ok(missingHistoryText.toLowerCase().includes('escadinha 0/3')
+     && missingHistoryText.includes('0/12 reps') && !missingHistoryText.includes('0x4 @'),
+     'histórico de escadinha parcial não cai no formato convencional 3×4');
+}
+const persistedLadder = structuredClone(w5d1Ladder);
+persistedLadder.date = '2026-10-26';
+persistedLadder.completed = true;
+persistedLadder.exercises[0].actual.ladderSteps[0] = {
+  reps:5, rpeTarget:6, weightKg:100, actualRpe:6, kneePain:0, completed:true
+};
+Storage.saveWorkout(persistedLadder);
+const ladderReadback = Storage.getWorkouts().find(w => w.week === 5);
+ok(ladderReadback && ladderReadback.exercises[0].actual.ladderSteps[0].completed
+   && ladderReadback.exercises[0].actual.ladderSteps[0].weightKg === 100,
+   'histórico JSON preserva os passos e cargas realizados da escadinha');
+const ladderCsv = Export.generateCSV();
+ok(ladderCsv.includes('load_cap_kg') && ladderCsv.includes('planned_ladder')
+   && ladderCsv.includes('actual_ladder') && ladderCsv.includes('5@RPE6:100kg'),
+   'CSV exporta prescrição, teto e execução da escadinha');
+const ladderCsvRows = ladderCsv.split('\n').map(row => row.split(','));
+const ladderCsvHeaders = ladderCsvRows[0];
+const ladderCsvRow = ladderCsvRows.find(row => row[0] === persistedLadder.date
+   && row[ladderCsvHeaders.indexOf('week')] === '5'
+   && row[ladderCsvHeaders.indexOf('planned_ladder')]);
+ok(ladderCsvRow && ladderCsvRow[ladderCsvHeaders.indexOf('planned_sets')] === '3'
+   && ladderCsvRow[ladderCsvHeaders.indexOf('planned_reps')] === ''
+   && ladderCsvRow[ladderCsvHeaders.indexOf('planned_pct')] === ''
+   && ladderCsvRow[ladderCsvHeaders.indexOf('planned_weight')] === ''
+   && ladderCsvRow[ladderCsvHeaders.indexOf('load_cap_kg')] === '100',
+   'CSV não duplica a escadinha como 3×4 nem rotula o teto como peso-alvo');
+_ls.delete(Storage.KEYS.WORKOUTS);
+const blockedNoHistory = Workout.generateWorkout({ ...cfg, currentWeek:5 }, 1).exercises.find(e => e.lift === 'squat');
+ok(blockedNoHistory.planned.loadBlocked && blockedNoHistory.planned.weight === null
+   && blockedNoHistory.planned.loadCapKg === null,
+   'sem carga de trabalho anterior no ciclo, S5 falha fechado sem inventar peso');
+if (savedWorkoutHistory === undefined) _ls.delete(Storage.KEYS.WORKOUTS);
+else _ls.set(Storage.KEYS.WORKOUTS, savedWorkoutHistory);
 
 // 5. Migracao de currentWeek — o caso que so aparece no celular dele.
 // Sync.applyRemote() escreve o config direto no localStorage, entao a migracao

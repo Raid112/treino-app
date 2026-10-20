@@ -1,18 +1,96 @@
 {
   "schema_version": 1,
-  "status": "pendente",
+  "status": "pronto",
   "natureza": "alvo_prescrito",
-  "semana_iso": null,
-  "bloco_id": null,
-  "semana_bloco": null,
-  "fase": null,
-  "approval": null,
-  "source": null,
-  "faixa_volume_aprovada_min": null,
-  "sessoes": [],
-  "totais": null,
-  "regra_long_run": null,
+  "semana_iso": "2026-W43",
+  "bloco_id": "B2-2026-09-28",
+  "semana_bloco": 4,
+  "fase": "base",
+  "approval": {
+    "state": "approved",
+    "reference": "Telegram DM 8682995146 msg7348 (2026-10-19T23:10:15-03:00) \"Simmm\" + msg7349 (2026-10-19T23:11:03.068645-03:00) \"Publica\"",
+    "approved_at": "2026-10-19T23:11:03.068645-03:00"
+  },
+  "source": {
+    "review_run_id": "LR4-2026-10-19-1001",
+    "prep_sha256": "c8f29abb4701cfca94b1fba88c864423334767dd78a49270267235163a3c34f0"
+  },
+  "faixa_volume_aprovada_min": [
+    158.8,
+    166.1
+  ],
+  "sessoes": [
+    {
+      "dia_app": "D1",
+      "papel": "agachamento",
+      "zona": "Z2",
+      "min": 30,
+      "fc_cap": 150,
+      "planned_date": null
+    },
+    {
+      "dia_app": "D2",
+      "papel": "terra",
+      "zona": "intervalado",
+      "min": 65.8,
+      "fc_cap": 162,
+      "planned_date": null,
+      "segmentos": [
+        {
+          "tipo": "continuo",
+          "min": 15,
+          "zona": "Z2",
+          "fc_cap": 150,
+          "intensidade": "leve"
+        },
+        {
+          "tipo": "intervalos",
+          "repeticoes": 4,
+          "forte": {
+            "min": 3,
+            "zona": "intervalo",
+            "fc_cap": 162,
+            "intensidade": "forte_controlado",
+            "pace_alvo": null
+          },
+          "recuperacao": {
+            "min": 2,
+            "zona": "Z2",
+            "fc_cap": 150,
+            "intensidade": "leve"
+          }
+        },
+        {
+          "tipo": "continuo",
+          "min": 30.8,
+          "zona": "Z2",
+          "fc_cap": 150,
+          "intensidade": "leve"
+        }
+      ]
+    },
+    {
+      "dia_app": "D4",
+      "papel": "long_run",
+      "zona": "Z2",
+      "min": 63,
+      "fc_cap": 150,
+      "planned_date": null
+    }
+  ],
+  "totais": {
+    "total_semanal_min": 158.8,
+    "total_z2_min": 146.8,
+    "total_z3_min": 0.0,
+    "total_intervalo_min": 12.0,
+    "agachamento_z2_min": 30.0,
+    "terra_z2_min": 53.8,
+    "long_run_z2_min": 63.0
+  },
+  "regra_long_run": "total_z2_min - agachamento_z2_min - terra_z2_min",
   "long_minimo_min": 30,
   "long_minimo_excecao": null,
-  "excecao_deload": {"aplica": false}
+  "excecao_deload": {
+    "aplica": false
+  }
 }
