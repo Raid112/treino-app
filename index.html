@@ -108,6 +108,7 @@ body > * { position: relative; z-index: 1; }
 
 /* === HOME === */
 .home-header { text-align: center; margin-bottom: 28px; }
+.app-version { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; margin: -4px 0 8px; opacity: 0.7; }
 .home-header h1 {
   font-family: var(--font-display); font-size: 24px; font-weight: 800; letter-spacing: 2px; margin-bottom: 8px;
   background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 50%, var(--neon-green) 100%);
@@ -430,6 +431,10 @@ body > * { position: relative; z-index: 1; }
 }
 .running-card-target { font-size: 24px; font-weight: 700; font-family: var(--font-display); color: var(--text-primary); margin-bottom: 16px; }
 .running-card-note { font-size: 12px; color: var(--neon-amber); margin-bottom: 12px; }
+.run-segments { margin: -6px 0 12px 18px; padding: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.run-segments li { margin-bottom: 6px; }
+.run-segments strong { color: var(--text-primary); }
+.run-segment-note { font-size: 11px; color: var(--text-muted); margin: 2px 0 8px; }
 .running-inputs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .running-input-group { flex: 1; min-width: 80px; display: flex; flex-direction: column; gap: 4px; }
 .running-input-group label { font-size: 9px; font-family: var(--font-display); color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
@@ -857,6 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
+      <div class="app-version">v26 · 20/10</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1432,8 +1438,7 @@ function runLabel(dayDef, wd, week, now = new Date()) {
     return `${target.zone} · FC ≤ ${target.fcCap} · duração pendente da review`;
   }
   const prefix = target.minEhPiso ? '≥' : '';
-  const segments = target.segments?.length ? ` · ${formatRunSegmentsLabel(target.segments)}` : '';
-  return `${prefix}${target.min}min ${target.zone}${segments} · FC ≤ ${target.fcCap}`;
+  return `${prefix}${target.min}min ${target.zone} · FC ≤ ${target.fcCap}`;
 }
 
 function formatRunSegmentsLabel(segments) {
@@ -1445,6 +1450,36 @@ function formatRunSegmentsLabel(segments) {
     }
     return '';
   }).filter(Boolean).join(' + ');
+}
+
+// Pace de referência por trecho (esteira / rua). A FC continua sendo o freio: passou do teto, desacelera.
+// Agente KpiMaster, 20/10/2026: Z2 de esteira 17/10 (8:03, 130 bpm), 06/10 (8:05, 128) e rua 14/10 (8:09, 134).
+// Forte sem pace-alvo: o único registro curto (esteira 14/10) não tem parciais e chegou a 177 bpm.
+const PACE_GUIDE = {
+  Z2: { esteira:'~8:05/km', rua:'~8:10/km' },
+  recuperacao: { esteira:'mais lento que 8:05', rua:'mais lento que 8:10',
+    nota:'Leve = trote bem leve. Caminhe só se a FC passar de 150 e volte a trotar quando baixar.' },
+  forte: { nota:'Forte = firme e repetível, sem sprint. Ainda sem pace-alvo (pouco dado): vá pelo esforço e não passe de 162.' }
+};
+
+function renderRunSegmentsDetail(target) {
+  if (!target || !Array.isArray(target.segments) || !target.segments.length) return '';
+  const g = PACE_GUIDE || {};
+  const pace = k => g[k]?.esteira ? ` · esteira <strong>${g[k].esteira}</strong> · rua <strong>${g[k].rua}</strong>` : '';
+  const rows = target.segments.map(seg => {
+    if (seg?.tipo === 'continuo') {
+      return `<li><strong>${seg.min} min Z2</strong> leve · FC ≤ ${seg.fc_cap}${pace('Z2')}</li>`;
+    }
+    if (seg?.tipo === 'intervalos') {
+      const nota = g.recuperacao?.nota ? `<div class="run-segment-note">${g.recuperacao.nota}</div>` : '';
+      return `<li><strong>${seg.repeticoes}× (${seg.forte?.min} min forte + ${seg.recuperacao?.min} min leve)</strong>
+        <div>Forte: FC até ${seg.forte?.fc_cap}${pace('forte')}</div>
+        <div>Leve: FC ≤ ${seg.recuperacao?.fc_cap}${pace('recuperacao')}</div>${nota}</li>`;
+    }
+    return '';
+  }).join('');
+  const forte = g.forte?.nota ? `<div class="run-segment-note">${g.forte.nota}</div>` : '';
+  return `<ol class="run-segments">${rows}</ol>${forte}`;
 }
 
 function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
@@ -1908,6 +1943,7 @@ const LIFT_NAMES = { squat:'Squat', bench:'Bench Press', deadlift:'Deadlift' };
 const ZONE_INFO = {
   'Z2':      { fc:'<= 150 bpm', desc:'Base aerobica (fc_cap do bloco)' },
   'Z3':      { fc:'<= 162 bpm', desc:'Qualidade (unica sessao/semana, D2)' },
+  'intervalado': { fc:'forte <= 162 · leve <= 150 bpm', desc:'Intervalado controlado (D2)' },
   '5K Teste':{ fc:'Max effort', desc:'Teste de saida do bloco' }
 };
 
@@ -3439,6 +3475,7 @@ const App = {
         ${zi ? `<span style="font-size:11px;color:var(--text-muted);">${zi.fc}</span>` : ''}
       </div>
       <div class="running-card-target">${runTargetLabel(r.target)}</div>
+      ${renderRunSegmentsDetail(r.target)}
       ${noteHtml}
       ${cad ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;margin-bottom:8px;">
         <span style="color:var(--neon-amber);">♫</span> ${cad.label}
@@ -3468,7 +3505,7 @@ const App = {
         </div>
         <div class="running-input-group">
           <label>Pace</label>
-          <input type="text" id="run-actual-pace" placeholder="5:30" value="${r.actual.pace || ''}">
+          <input type="text" id="run-actual-pace" placeholder="min/km" value="${r.actual.pace || ''}">
         </div>
       </div>`;
     container.appendChild(div);

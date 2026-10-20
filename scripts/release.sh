@@ -19,6 +19,10 @@ out=$(node --test tests/*.test.mjs 2>&1) || bloqueia "testes .mjs: $(grep -m3 'n
 
 sha=$(git rev-parse HEAD)
 git fetch -q origin master
+# Versão no topo do app = CACHE_NAME do sw.js. App mudou sem subir a versão = celular não sabe que atualizou.
+if ! git diff --quiet origin/master -- index.html corrida-plan.json manifest.json && git diff --quiet origin/master -- sw.js; then
+  bloqueia "app mudou mas a versão não subiu (CACHE_NAME no sw.js + app-version no index.html)"
+fi
 if [ "$(git rev-parse origin/master)" != "$sha" ]; then
   git push -q origin HEAD:master 2>&1 || bloqueia "push recusado"
 fi

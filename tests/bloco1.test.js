@@ -11,6 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+{
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+  const cache = (sw.match(/CACHE_NAME = 'treino-v(\d+)'/) || [])[1];
+  const shown = (html.match(/class="app-version">v(\d+) · /) || [])[1];
+  if (!cache || cache !== shown) { console.error(`FAIL versão no topo (v${shown}) difere do cache do sw.js (v${cache})`); process.exit(1); }
+}
 
 const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!m) { console.error('FAIL: <script> nao encontrado'); process.exit(1); }
@@ -52,7 +58,7 @@ try {
     'getRunSummaryStatus: typeof getRunSummaryStatus === "function" ? getRunSummaryStatus : null, ' +
     'hasRunDuration: typeof hasRunDuration === "function" ? hasRunDuration : null, ' +
     'refreshInProgressRunTarget: typeof refreshInProgressRunTarget === "function" ? refreshInProgressRunTarget : null, ' +
-    'runLabel, runTargetFor, runTargetLabel, dayDisplayName, ' +
+    'runLabel, runTargetFor, runTargetLabel, dayDisplayName, renderRunSegmentsDetail, ' +
     'renderCurrentWeekRunningTargets: typeof renderCurrentWeekRunningTargets === "function" ? renderCurrentWeekRunningTargets : null, ' +
     'CURRENT_WEEK_RUNNING_TARGETS: typeof CURRENT_WEEK_RUNNING_TARGETS === "undefined" ? null : CURRENT_WEEK_RUNNING_TARGETS, ' +
     'getRunTimerTargetSeconds, isRunTargetReached: typeof isRunTargetReached === "function" ? isRunTargetReached : null, ' +
@@ -71,7 +77,7 @@ try {
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         Workout, Storage, getAccSets, validateRunningPlanPayload, setApprovedRunningPlan,
         getRunSummaryStatus, hasRunDuration,
-        refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel, dayDisplayName,
+        refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel, dayDisplayName, renderRunSegmentsDetail,
         renderCurrentWeekRunningTargets, CURRENT_WEEK_RUNNING_TARGETS,
         getRunTimerTargetSeconds, isRunTargetReached, getElapsedRunSeconds, shouldResumeRunTimer, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
         formatTopSetPrescription, formatHistoryExercise, renderExerciseSeriesOverview,
@@ -479,9 +485,15 @@ if (planContractHelpersAvailable) {
   const w43D2Label = runLabel(DAY_DEFS[1], WEEK_DATA[4], 4, w43Date);
   ok(w43D2.running.target.min === 66 && w43D2.running.target.zone === 'intervalado'
      && w43D2.running.target.segments.length === 3
-     && w43D2Label.includes('15 min Z2') && w43D2Label.includes('4×(3 min forte controlado / 2 min leve Z2)')
-     && w43D2Label.includes('31 min Z2') && !/\d+\.\d+ ?min/.test(w43D2Label) && !/pace\s*\d/i.test(w43D2Label),
-     'consumer mostra D2 em minutos inteiros (65,8→66, 30,8→31; Caio 20/10) sem criar pace-alvo');
+     && w43D2Label === '66min intervalado · FC ≤ 162',
+     'card da home resume D2 (66 min, sem a estrutura; Caio 20/10)');
+  const w43D2Detail = renderRunSegmentsDetail(w43D2.running.target);
+  ok(w43D2Detail.includes('15 min Z2') && w43D2Detail.includes('4× (3 min forte + 2 min leve)')
+     && w43D2Detail.includes('31 min Z2') && !/\d+\.\d+ ?min/.test(w43D2Detail),
+     'dentro do treino o D2 mostra cada trecho em minuto inteiro');
+  ok(w43D2Detail.includes('esteira <strong>~8:05/km</strong>') && w43D2Detail.includes('rua <strong>~8:10/km</strong>')
+     && /Caminhe só se a FC passar de 150/.test(w43D2Detail) && /sem sprint/.test(w43D2Detail),
+     'D2 traz pace de Z2 (esteira/rua), regra da recuperação e o que é o forte');
   ok(dayDisplayName(DAY_DEFS[1], 4, w43Date) === 'Deadlift + Corrida intervalada',
      'D2 intervalado não se chama mais "Corrida Z3"');
   ok(setApprovedRunningPlan(syntheticRunPlan), 'teste W43 restaura o payload sintético anterior');
