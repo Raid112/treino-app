@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 PWA de treino de força que executa o **bloco de 6 semanas** da DES-694 (`B2-2026-09-28`, início 2026-09-28 — reset do `B1-2026-09-07` a pedido do Caio por mudança grande de estratégia; regra permanente dele: mudança grande = bloco novo começando na semana 1), com corrida e acessórios. Aplicação 100% client-side, sem dependências npm — um único arquivo HTML (~2630 linhas) com CSS e JS embutidos, hospedado no GitHub Pages. **Offline-first**: localStorage é cache + buffer; jsonbin (via Worker) é a fonte da verdade remota.
 
 - **Repo**: `https://github.com/Raid112/treino-app.git`
-- **Deploy**: GitHub Pages (usa `.nojekyll`), branch `master`, em `https://raid112.github.io/treino-app/`
+- **Deploy**: só `scripts/release.sh` (20/10/2026). Ele roda os testes, empurra o `master` e espera o workflow `release` do Actions, que só publica no GitHub Pages se lógica + teste no navegador (`tests/smoke.browser.mjs`: todas as telas, S1-S6, cada sessão) passarem; depois confere o Pages público. Resposta é `PUBLICADO <sha>` ou `BLOQUEADO: <motivo>`. Não publicar por outro caminho. URL: `https://raid112.github.io/treino-app/`
 - **Consumo primário**: Android (PWA standalone). Considerar isso em qualquer decisão de UX/erro.
 - **Idioma da UI**: Português brasileiro
 

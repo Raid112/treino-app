@@ -1048,20 +1048,18 @@ const DIET_PLAN = {
     label: 'Cut · teste 1.600 kcal (7 dias)',
     protein_g: 205, fat_g: 60, carbohydrateTarget_g: 60,
     carbohydrateApproximate: true,
-    macroReconciliationNote: 'A proposta por refeição aprovada em 19/10/2026 informou divergência aproximada de ~20 kcal entre kcal e macros da tabela; o app não recalcula nem afirma fechamento exato.',
-    note: 'Teste temporário aprovado para 19–25/10/2026, sobre o contrato-base v9d (1.700 kcal/dia). A energia e os macros são alvos aproximados, não um cardápio calculado: a composição da carne/mistura e os alimentos/porções do pré e pós não foram especificados. Não afirmar que o dia fecha exatamente em 1.600 kcal ou nos três macros.'
+    note: 'Teste de 7 dias (19 a 25/10), depois revisamos. Dia fecha perto de 1.600 kcal, P205/C60/G60. Fora da janela volta ao v9d (1.700 kcal).'
   },
   weekChanges: {
     4: {
       kind: 'change',
-      text: 'Teste de 7 dias (19–25/10/2026): alvo aproximado de 1.600 kcal/dia; P ≥205 g, G ≥60 g e C ≈60 g. É um override temporário do app sobre o contrato-base v9d de 1.700 kcal/dia. Fora da janela de teste, volta ao alvo base. Manter 30 min de Z2 em bicicleta/ergométrica na semana, separada e fora do volume de corrida.'
+      text: 'Manter 30 min de Z2 em bicicleta/ergométrica na semana, fora do volume de corrida.'
     }
   },
   baseMeals: [
     { id:'cafe_manha', label:'Café da manhã',
-      quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
-      uncertainty:'Kcal e macros dependem do teor de gordura e do rótulo do leite; o app não estima a composição.',
-      note:'Mantido sem mudanças; leite em volume explícito.' },
+      quantity:'2 ovos + 200 g de tomate-cereja',
+      note:'Sem leite (Caio, 20/10/2026).' },
     { id:'almoco', label:'Almoço',
       quantity:'400 g de mistura + 400 g de vegetais',
       uncertainty:'A composição e o preparo da mistura não foram especificados; kcal e macros não podem ser confirmados só pelo peso total.',
@@ -1074,34 +1072,34 @@ const DIET_PLAN = {
     { id:'pre_treino', label:'Pré-treino',
       proteinRange_g:[25,35],
       quantity:'Guia: 25–35 g de proteína; carbo pesado e distribuído entre pré e pós conforme horário/tolerância, dentro do total diário. Alimentos e porções não especificados.',
-      note:'Kcal e carbo por refeição não definidos; conferir rótulos.' },
+      note:'Proteína pelo rótulo.' },
     { id:'pos_treino', label:'Pós-treino',
       proteinRange_g:[25,35],
       quantity:'Guia: 25–35 g de proteína; carbo pesado e distribuído entre pré e pós conforme horário/tolerância, dentro do total diário. Alimentos e porções não especificados.',
       note:'Pesar tudo o que for consumido à noite; sem composição inferida.' }
   ],
+  // Proposta por refeição aprovada no Telegram em 19/10/2026 ("Bora de 1600" / "Perfeito. Aplica no app").
   trialMeals: [
     { id:'cafe_manha', label:'Café da manhã',
-      quantity:'2 ovos + 200 g de tomate-cereja + 500 ml de leite',
-      uncertainty:'Kcal e macros dependem do teor de gordura e do rótulo do leite; o app não estima a composição.',
-      note:'Mantido sem mudanças; leite em volume explícito.' },
+      quantity:'2 ovos + 200 g de tomate-cereja',
+      kcal:180, protein_g:14, carbohydrate_g:9, fat_g:10,
+      note:'Mantido; sem leite.' },
     { id:'almoco', label:'Almoço',
       quantity:'350 g de carne/mistura + 400 g de vegetais',
-      uncertainty:'A composição e o preparo da carne/mistura não foram especificados; kcal e macros não podem ser confirmados só pelo peso total.',
-      note:'Pesar as porções prontas; não inferir nutrientes da mistura.' },
+      kcal:812, protein_g:124, carbohydrate_g:22, fat_g:24,
+      note:'50 g a menos de mistura: ~100 kcal deslocadas pra noite.' },
     { id:'cafe_tarde', label:'Café da tarde',
-      quantity:'Café preto + 200 ml de leite Italac semidesnatado',
-      labelNutrition:{ kcal:80, protein_g:6.2, fat_g:2, carbohydrate_g:9.2 },
-      uncertainty:'Valores informados do rótulo para os 200 ml de leite; não representam a refeição completa nem estimam outros alimentos.',
-      note:'Rótulo do leite informado: 80 kcal, P 6,2 g, G 2 g, C 9,2 g.' },
+      quantity:'Café + 200 ml de leite Italac semidesnatado',
+      kcal:80, protein_g:6, carbohydrate_g:9, fat_g:2,
+      note:'Rótulo Italac.' },
     { id:'pre_treino', label:'Pré-treino',
       proteinTarget_g:30, carbohydrateTarget_g:10,
-      quantity:'Alvo aproximado: 30 g de proteína e 10 g de carboidratos; alimentos e porções não especificados. Conferir rótulos.',
-      note:'Escolha alimentar permanece em aberto; não há kcal por refeição.' },
+      quantity:'30 g de proteína + ~10 g de carbo',
+      note:'Noite (pré + pós): ~540 kcal no total; gordura restante entre os dois.' },
     { id:'pos_treino', label:'Pós-treino',
       proteinTarget_g:30, carbohydrateTarget_g:10,
-      quantity:'Alvo aproximado: 30 g de proteína e 10 g de carboidratos; alimentos e porções não especificados. Conferir rótulos.',
-      note:'Escolha alimentar permanece em aberto; pesar o que for consumido, sem inferir uma composição.' }
+      quantity:'30 g de proteína + ~10 g de carbo',
+      note:'Pesar o que for consumido.' }
   ]
 };
 
@@ -1137,7 +1135,7 @@ function getDietWeekPlan(week, _config = {}, now = new Date()) {
     })),
     trialId: trial.id, trialStart: trial.startsOn, trialEnd: trial.endsOn,
     trialActive, trialExpired,
-    macroReconciliationNote: trialActive ? trial.macroReconciliationNote : null,
+    macroReconciliationNote: null,
     caloriesForCarbsAtFloors: null, carbsAtFloors_g: null
   };
 }
@@ -1170,37 +1168,32 @@ function renderDietPlanMarkup(plan) {
     : '';
   const meals = plan.meals.map(meal => {
     const targets = [];
-    if (Array.isArray(meal.proteinRange_g)) targets.push(`P ${meal.proteinRange_g[0]}–${meal.proteinRange_g[1]} g`);
-    else if (Number.isFinite(meal.proteinTarget_g)) targets.push(`P ≈${meal.proteinTarget_g} g`);
-    if (Number.isFinite(meal.carbohydrateTarget_g)) targets.push(`C ≈${meal.carbohydrateTarget_g} g`);
-    const mealTarget = targets.length ? targets.join(' · ') : 'Sem meta individual';
-    const macroLabel = targets.length
-      ? 'Alvos aproximados; kcal/macros da refeição completa não calculados.'
-      : 'Kcal/macros por refeição não definidos; usar os rótulos e as porções informadas.';
-    const n = meal.labelNutrition;
-    const labelNutritionHtml = n
-      ? `<div class="diet-plan-meal-macros">Rótulo informado do leite (200 ml): ${n.kcal} kcal · P ${Number(n.protein_g).toLocaleString('pt-BR')} g · G ${Number(n.fat_g).toLocaleString('pt-BR')} g · C ${Number(n.carbohydrate_g).toLocaleString('pt-BR')} g; não representa a refeição completa.</div>`
-      : '';
+    if (Number.isFinite(meal.kcal)) {
+      targets.push(`~${meal.kcal} kcal`, `P${meal.protein_g} C${meal.carbohydrate_g} G${meal.fat_g}`);
+    } else {
+      if (Array.isArray(meal.proteinRange_g)) targets.push(`P ${meal.proteinRange_g[0]}–${meal.proteinRange_g[1]} g`);
+      else if (Number.isFinite(meal.proteinTarget_g)) targets.push(`P ≈${meal.proteinTarget_g} g`);
+      if (Number.isFinite(meal.carbohydrateTarget_g)) targets.push(`C ≈${meal.carbohydrateTarget_g} g`);
+    }
+    const mealTarget = targets.join(' · ');
+    const macroLabel = '';
+    const labelNutritionHtml = '';
     return `<div class="diet-plan-meal">
       <div><span class="diet-plan-meal-name">${meal.label}</span><span class="diet-plan-meal-note">${meal.note}</span></div>
-      <div class="diet-plan-meal-target">${mealTarget}</div>
+      ${mealTarget ? `<div class="diet-plan-meal-target">${mealTarget}</div>` : ''}
       <div class="diet-plan-quantity"><strong>Quantidade:</strong> ${meal.quantity}</div>
-      <div class="diet-plan-meal-macros">${macroLabel}</div>
-      ${labelNutritionHtml}
       ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
     </div>`;
   }).join('');
   const mealGuidance = plan.trialActive
-    ? 'Pré/pós: metas aproximadas, sem alimentos ou kcal por refeição definidos. Sem rateio de kcal/carbo por refeição.'
+    ? ''
     : 'Pré/pós: guia-base de 25–35 g de proteína em cada refeição; carbo pesado e distribuído flexivelmente entre elas, dentro do total diário.';
-  const trialBase = plan.trialActive
-    ? '<div class="diet-plan-note">contrato base v9d: 1.700 kcal/dia. Fora da janela de teste, volta ao alvo base.</div>'
-    : '';
+  const trialBase = '';
   return `<section class="diet-plan-card">
-    <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · W${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
+    <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · S${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
     <div class="diet-plan-meta">${plan.note}</div>
     ${dailyTargetsHtml}${macroNote}${trialBase}
-    <div class="diet-plan-note">${mealGuidance}</div>
+    ${mealGuidance ? `<div class="diet-plan-note">${mealGuidance}</div>` : ''}
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${expiredHtml}
   </section>`;
 }
@@ -1463,10 +1456,11 @@ function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
   const approved = getApplicableRunningPlan(week, now);
   const planned = approved && approved.sessoes.find(session => session.dia_app === `D${dayDef.day}`);
   if (planned && dayDef.run) {
-    return { min: planned.min, minEhPiso: false, zone: planned.zona,
+    return { min: Math.round(planned.min), minEhPiso: false, zone: planned.zona,
              fcCap: planned.fc_cap, tipo: dayDef.run,
              segments: Array.isArray(planned.segmentos)
                ? planned.segmentos.map(segment => ({ ...segment,
+                   ...(Number.isFinite(segment.min) ? { min: Math.round(segment.min) } : {}),
                    forte: segment.forte ? { ...segment.forte } : segment.forte,
                    recuperacao: segment.recuperacao ? { ...segment.recuperacao } : segment.recuperacao })) : [],
              source: 'review-aprovada' };
@@ -1482,6 +1476,14 @@ function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
   return { min: dayDef.runMin ?? c.sessaoMinimaMin,
            minEhPiso: dayDef.runMin == null, zone: c.zona, fcCap: c.fcCap,
            tipo: dayDef.run || 'base' };
+}
+
+// O nome fixo do D2 diz "Corrida Z3"; quando a semana aprovada é intervalada, o card tem que dizer isso.
+function dayDisplayName(dayDef, week, now = new Date()) {
+  if (!dayDef.run || !/Corrida Z3/.test(dayDef.name)) return dayDef.name;
+  const wd = WEEK_DATA[week];
+  const target = wd ? runTargetFor(dayDef, wd, week, now) : null;
+  return target && target.zone === 'intervalado' ? dayDef.name.replace('Corrida Z3', 'Corrida intervalada') : dayDef.name;
 }
 
 function runTargetLabel(target) {
@@ -2400,7 +2402,7 @@ const Workout = {
       date: today,
       dayNum,
       dayType: dayDef.type,
-      dayName: dayDef.name,
+      dayName: dayDisplayName(dayDef, week),
       week,
       cycleId,
       block: wd.block,
@@ -2476,7 +2478,7 @@ const Workout = {
       base.running = {
         target: t,
         note: teste ? 'Teste de saida: 5K de rua. So com recovery.flag verde e sem dor.'
-                    : 'Volume da semana vem do contrato (loops/corrida/plano.md).',
+                    : '',
         actual: { completed: false, duration: null, hr: null, pace: null }
       };
     }
@@ -2872,7 +2874,9 @@ const App = {
     const runDone = Storage.getCompletedRunMinutes(week);
     // Denominador e o TETO do bloco, nao um alvo: o alvo da semana e do contrato e o
     // app nao o conhece. Rotulado como teto pra nao ser lido como meta.
-    const runTarget = BLOCO_DES694.corrida.volumeTetoMin;
+    const weekPlan = getApplicableRunningPlan(week, new Date());
+    const runTarget = weekPlan ? Math.round(weekPlan.totais.total_semanal_min) : BLOCO_DES694.corrida.volumeTetoMin;
+    const runTargetLabel = weekPlan ? 'min meta' : 'min teto';
     const pct5k = Math.min((runDone / runTarget) * 100, 100);
     const noteHtml = wd.nota ? `<div class="week-summary-note">${wd.nota}</div>` : '';
     // Erro nunca fica mudo (CLAUDE.md): se o config veio de um plano/bloco antigo, diz.
@@ -2898,7 +2902,7 @@ const App = {
         </div>
         <div class="week-summary-goal">
           <div class="week-summary-goal-label">CORRIDA</div>
-          <div><span class="week-summary-goal-value">${runDone}</span><span class="week-summary-goal-target">/${runTarget}min teto</span></div>
+          <div><span class="week-summary-goal-value">${runDone}</span><span class="week-summary-goal-target">/${runTarget}${runTargetLabel}</span></div>
           <div class="week-summary-goal-pct green">${Math.round(pct5k)}%</div>
           <div class="week-summary-track"><div class="week-summary-fill green" style="width:${pct5k}%"></div></div>
         </div>
@@ -2940,7 +2944,7 @@ const App = {
         <div class="session-card type-${dd.type} ${done ? 'completed' : ''}" data-day="${dd.day}">
           <div class="session-card-header">
             <span class="session-card-title">
-              D${dd.day} ${dd.name}${done ? '<span class="session-card-check">✓</span>' : ''}
+              D${dd.day} ${dayDisplayName(dd, week)}${done ? '<span class="session-card-check">✓</span>' : ''}
             </span>
             <span class="session-card-badge">${dd.sugDay}</span>
           </div>

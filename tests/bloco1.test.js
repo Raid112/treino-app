@@ -52,7 +52,7 @@ try {
     'getRunSummaryStatus: typeof getRunSummaryStatus === "function" ? getRunSummaryStatus : null, ' +
     'hasRunDuration: typeof hasRunDuration === "function" ? hasRunDuration : null, ' +
     'refreshInProgressRunTarget: typeof refreshInProgressRunTarget === "function" ? refreshInProgressRunTarget : null, ' +
-    'runLabel, runTargetFor, runTargetLabel, ' +
+    'runLabel, runTargetFor, runTargetLabel, dayDisplayName, ' +
     'renderCurrentWeekRunningTargets: typeof renderCurrentWeekRunningTargets === "function" ? renderCurrentWeekRunningTargets : null, ' +
     'CURRENT_WEEK_RUNNING_TARGETS: typeof CURRENT_WEEK_RUNNING_TARGETS === "undefined" ? null : CURRENT_WEEK_RUNNING_TARGETS, ' +
     'getRunTimerTargetSeconds, isRunTargetReached: typeof isRunTargetReached === "function" ? isRunTargetReached : null, ' +
@@ -71,7 +71,7 @@ try {
 const { BLOCO_DES694: B, WEEK_DATA, DAY_DEFS, EXECUTION_PROFILES: EP,
         Workout, Storage, getAccSets, validateRunningPlanPayload, setApprovedRunningPlan,
         getRunSummaryStatus, hasRunDuration,
-        refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel,
+        refreshInProgressRunTarget, runLabel, runTargetFor, runTargetLabel, dayDisplayName,
         renderCurrentWeekRunningTargets, CURRENT_WEEK_RUNNING_TARGETS,
         getRunTimerTargetSeconds, isRunTargetReached, getElapsedRunSeconds, shouldResumeRunTimer, resolveRunDuration, DIET_PLAN, getDietWeekPlan, renderDietPlanMarkup,
         formatTopSetPrescription, formatHistoryExercise, renderExerciseSeriesOverview,
@@ -175,31 +175,30 @@ ok(trialDiet.protein_g === 205 && trialDiet.fat_g === 60
    'meta diária registra P≥205 g, G≥60 g e C≈60 g sem rateio');
 ok(trialDiet.caloriesForCarbsAtFloors == null && trialDiet.carbsAtFloors_g == null,
    'não transforma a divergência da tabela em saldo exato de carbo');
-ok(trialDiet.meals.every(m => m.calories == null && m.share == null && m.carbs_g == null),
-   'não inventa kcal ou macros por refeição');
+// Proposta por refeição aprovada pelo Caio em 19/10/2026; café sem leite (Caio, 20/10/2026).
+const meal = id => trialDiet.meals.find(item => item.id === id);
+const macros = id => { const m = meal(id); return [m.kcal, m.protein_g, m.carbohydrate_g, m.fat_g].join('/'); };
+ok(macros('cafe_manha') === '180/14/9/10' && macros('almoco') === '812/124/22/24' && macros('cafe_tarde') === '80/6/9/2',
+   'café, almoço e café da tarde levam kcal e macros aprovados em 19/10');
 const renderedDiet = renderDietPlanMarkup(trialDiet);
 ok(renderedDiet.includes('≈1.600 kcal/dia')
    && renderedDiet.includes('P ≥205 g/dia')
    && renderedDiet.includes('G ≥60 g/dia')
-   && renderedDiet.includes('C ≈60 g/dia')
-   && renderedDiet.includes('contrato base v9d')
-   && renderedDiet.includes('1.700 kcal/dia'),
-   'tela mostra as metas diárias aproximadas e identifica o contrato base v9d');
-ok(renderedDiet.includes('~20 kcal'),
-   'tela mantém a divergência de aproximadamente 20 kcal informada na proposta');
-ok(renderedDiet.includes('proposta por refeição aprovada'),
-   'tela atribui a divergência à proposta aprovada, não a um recálculo do app');
-ok(renderedDiet.includes('não recalcula') && renderedDiet.includes('nem afirma fechamento exato'),
-   'tela explicita que macros e calorias não fecham com exatidão');
+   && renderedDiet.includes('C ≈60 g/dia'),
+   'tela mostra as metas diárias do teste');
+ok(renderedDiet.includes('~812 kcal · P124 C22 G24') && renderedDiet.includes('~180 kcal · P14 C9 G10')
+   && renderedDiet.includes('~80 kcal · P6 C9 G2'),
+   'tela mostra kcal e macros por refeição');
+ok(!/Sem meta individual|não definidos|não especificados|não recalcula/.test(renderedDiet),
+   'tela não volta à parede de avisos');
+ok(renderedDiet.includes('~540 kcal'),
+   'tela diz quanto sobra pra noite (pré + pós)');
 ok(!renderedDiet.includes('restam 240 kcal'),
    'tela não inventa saldo de carbo a partir da divergência');
-ok(renderedDiet.includes('Sem rateio de kcal/carbo por refeição')
-   && renderedDiet.includes('fora do volume de corrida'),
-   'tela mantém a distribuição diária e a bicicleta fora da corrida');
-ok(renderedDiet.includes('contrato base v9d: 1.700 kcal/dia')
-   && renderedDiet.includes('Fora da janela de teste, volta ao alvo base.'),
-   'tela explicita a vigência temporária do override e o retorno ao contrato-base');
-const meal = id => trialDiet.meals.find(item => item.id === id);
+ok(renderedDiet.includes('fora do volume de corrida') && renderedDiet.includes('1.700 kcal'),
+   'tela mantém a bicicleta fora da corrida e o retorno ao v9d');
+ok(/· S4</.test(renderedDiet) && !/· W\d/.test(renderedDiet),
+   'cabeçalho usa a semana do bloco (S4), não W4');
 const preMeal = meal('pre_treino');
 const postMeal = meal('pos_treino');
 ok(preMeal.proteinTarget_g === 30 && postMeal.proteinTarget_g === 30
@@ -207,27 +206,16 @@ ok(preMeal.proteinTarget_g === 30 && postMeal.proteinTarget_g === 30
    'pré e pós têm metas aproximadas individuais P≈30 g e C≈10 g');
 ok((renderedDiet.match(/P ≈30 g · C ≈10 g/g) || []).length === 2,
    'renderer exibe as metas aproximadas no pré e no pós');
-ok(preMeal.calories == null && postMeal.calories == null,
-   'metas pré/pós não criam rateio de kcal por refeição');
-ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja + 500 ml de leite',
-   'café da manhã permanece exatamente como estava');
-ok(meal('almoco').quantity === '350 g de carne/mistura + 400 g de vegetais'
-   && /composição|composicao/.test(meal('almoco').uncertainty),
-   'almoço atualiza a porção sem estimar macros da mistura');
-ok(meal('cafe_tarde').quantity === 'Café preto + 200 ml de leite Italac semidesnatado'
-   && meal('cafe_tarde').labelNutrition.kcal === 80
-   && meal('cafe_tarde').labelNutrition.protein_g === 6.2
-   && meal('cafe_tarde').labelNutrition.fat_g === 2
-   && meal('cafe_tarde').labelNutrition.carbohydrate_g === 9.2,
-   'café da tarde usa a porção de 200 ml e valores fornecidos do rótulo Italac');
-ok(renderedDiet.includes('80 kcal') && renderedDiet.includes('P 6,2 g')
-   && renderedDiet.includes('G 2 g') && renderedDiet.includes('C 9,2 g'),
-   'tela identifica os valores de rótulo sem inferir outras refeições');
+ok(meal('cafe_manha').quantity === '2 ovos + 200 g de tomate-cereja',
+   'café da manhã sem os 500 ml de leite');
+ok(meal('almoco').quantity === '350 g de carne/mistura + 400 g de vegetais',
+   'almoço com 350 g de mistura');
+ok(meal('cafe_tarde').quantity === 'Café + 200 ml de leite Italac semidesnatado',
+   'café da tarde com 200 ml de Italac semidesnatado');
 ok(DIET_PLAN.weekChanges[4].kind === 'change'
-   && /teste de 7 dias/i.test(DIET_PLAN.weekChanges[4].text)
    && /30 min de Z2 em bicicleta/.test(DIET_PLAN.weekChanges[4].text)
    && html.includes('diet-plan-change'),
-   'W4 destaca o teste e mantém a bicicleta Z2 semanal separada da corrida');
+   'S4 mantém a bicicleta Z2 semanal separada da corrida');
 const expiredDiet = getDietWeekPlan(4, {}, new Date(2026, 9, 26, 12));
 ok(expiredDiet.totalCalories === 1700 && expiredDiet.trialActive === false && expiredDiet.version === 'v9d'
    && expiredDiet.calorieRule.includes('1.700'),
@@ -489,11 +477,13 @@ if (planContractHelpersAvailable) {
   ok(setApprovedRunningPlan(w43IntervalPlan), 'payload W43 sintético fica disponível ao consumer');
   const w43D2 = Workout.generateWorkout({ ...cfg, currentWeek: 4 }, 2, w43Date);
   const w43D2Label = runLabel(DAY_DEFS[1], WEEK_DATA[4], 4, w43Date);
-  ok(w43D2.running.target.min === 65.8 && w43D2.running.target.zone === 'intervalado'
+  ok(w43D2.running.target.min === 66 && w43D2.running.target.zone === 'intervalado'
      && w43D2.running.target.segments.length === 3
      && w43D2Label.includes('15 min Z2') && w43D2Label.includes('4×(3 min forte controlado / 2 min leve Z2)')
-     && w43D2Label.includes('30.8 min Z2') && !/pace\s*\d/i.test(w43D2Label),
-     'consumer mostra os segmentos completos de D2 sem criar pace-alvo');
+     && w43D2Label.includes('31 min Z2') && !/\d+\.\d+ ?min/.test(w43D2Label) && !/pace\s*\d/i.test(w43D2Label),
+     'consumer mostra D2 em minutos inteiros (65,8→66, 30,8→31; Caio 20/10) sem criar pace-alvo');
+  ok(dayDisplayName(DAY_DEFS[1], 4, w43Date) === 'Deadlift + Corrida intervalada',
+     'D2 intervalado não se chama mais "Corrida Z3"');
   ok(setApprovedRunningPlan(syntheticRunPlan), 'teste W43 restaura o payload sintético anterior');
 
   ok(typeof isRunTargetReached === 'function'

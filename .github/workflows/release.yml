@@ -1,0 +1,56 @@
+# Deploy do app = este workflow. Só publica no Pages se os testes de lógica E o teste no
+# navegador passarem. Push no master dispara; scripts/release.sh empurra e espera o resultado.
+name: release
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/Sao_Paulo  # janela do teste de dieta e semana do plano de corrida são por data local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Lógica (bloco, dieta, corrida, recalibragem)
+        run: |
+          node tests/bloco1.test.js
+          node tests/recalibragem.test.js
+          node --test tests/*.test.mjs
+      - name: Instala Chromium
+        run: npm i --no-save --no-package-lock playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Navegador (todas as telas, S1-S6, cada sessão)
+        run: SMOKE_SHOTS=telas node tests/smoke.browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: telas
+          path: telas
+          if-no-files-found: ignore
+      - name: Monta o site
+        run: |
+          mkdir site
+          cp index.html sw.js manifest.json corrida-plan.json icon-*.png .nojekyll site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    needs: gate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
