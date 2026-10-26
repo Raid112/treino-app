@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v26 · 20/10</div>
+      <div class="app-version">v28 · 26/10</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1033,12 +1033,14 @@ const WEEK_DATA = {
        nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
 };
 
-// O contrato canônico segue v9d; o teste de 7 dias é um override operacional
-// explícito e restrito à W4, sem transformar a hipótese em nova versão do contrato.
+// O teste histórico de 19–25/10 permanece consultável; desde 26/10 o plano
+// de 1.600 kcal com café é vigente em todas as semanas, sem expiração automática.
 const DIET_PLAN = {
   version: '2026-10-19-trial-1600',
   contract: 'loops/dieta/contrato.md',
   baseContractVersion: 'v9d',
+  currentVersion: 'v9e',
+  currentStartsOn: '2026-10-26',
   weeks: { 1:'cut', 2:'cut', 3:'cut', 4:'cut', 5:'cut', 6:'cut' },
   base: {
     label: 'Cut v9d', totalCalories: 1700,
@@ -1054,7 +1056,7 @@ const DIET_PLAN = {
     label: 'Cut · teste 1.600 kcal (7 dias)',
     protein_g: 205, fat_g: 60, carbohydrateTarget_g: 60,
     carbohydrateApproximate: true,
-    note: 'Teste de 7 dias (19 a 25/10), depois revisamos. Dia fecha perto de 1.600 kcal, P205/C60/G60. Fora da janela volta ao v9d (1.700 kcal).'
+    note: 'Teste histórico de 7 dias (19 a 25/10): proposta aproximada de P205/C60/G60, sem comprovação de consumo ou dos pisos. Após a review, v9e foi autorizado em 26/10; não houve retorno automático ao v9d.'
   },
   weekChanges: {
     4: {
@@ -1073,7 +1075,7 @@ const DIET_PLAN = {
     { id:'cafe_tarde', label:'Café da tarde',
       quantity:'Café preto + 200 ml de leite Italac semidesnatado',
       labelNutrition:{ kcal:80, protein_g:6.2, fat_g:2, carbohydrate_g:9.2 },
-      uncertainty:'Valores informados do rótulo para os 200 ml de leite; não representam a refeição completa nem estimam outros alimentos.',
+      uncertainty:'Valores informados do rótulo para os 200 ml de leite; café e eventuais adições não incluídos.',
       note:'Rótulo do leite informado: 80 kcal, P 6,2 g, G 2 g, C 9,2 g.' },
     { id:'pre_treino', label:'Pré-treino',
       proteinRange_g:[25,35],
@@ -1082,18 +1084,18 @@ const DIET_PLAN = {
     { id:'pos_treino', label:'Pós-treino',
       proteinRange_g:[25,35],
       quantity:'Guia: 25–35 g de proteína; carbo pesado e distribuído entre pré e pós conforme horário/tolerância, dentro do total diário. Alimentos e porções não especificados.',
-      note:'Pesar tudo o que for consumido à noite; sem composição inferida.' }
+      note:'Pesar em gramas pão, mel, leite em pó e todos os itens consumidos no pós-treino noturno; sem composição inferida.' }
   ],
   // Proposta por refeição aprovada no Telegram em 19/10/2026 ("Bora de 1600" / "Perfeito. Aplica no app").
   trialMeals: [
     { id:'cafe_manha', label:'Café da manhã',
       quantity:'2 ovos + 200 g de tomate-cereja',
-      kcal:180, protein_g:14, carbohydrate_g:9, fat_g:10,
-      note:'Mantido; sem leite.' },
+      kcal:180, sourceMacros:{ protein:14, carbohydrate:9, fat:10 },
+      note:'Mantido; sem leite. Macros estimados pela planilha; unidade dos macros não confirmada.' },
     { id:'almoco', label:'Almoço',
       quantity:'350 g de carne/mistura + 400 g de vegetais',
-      kcal:812, protein_g:124, carbohydrate_g:22, fat_g:24,
-      note:'50 g a menos de mistura: ~100 kcal deslocadas pra noite.' },
+      kcal:812, sourceMacros:{ protein:124, carbohydrate:22, fat:24 },
+      note:'50 g a menos de mistura: ~100 kcal deslocadas pra noite. Macros estimados pela planilha; unidade dos macros não confirmada.' },
     { id:'cafe_tarde', label:'Café da tarde',
       quantity:'Café + 200 ml de leite Italac semidesnatado',
       kcal:80, protein_g:6, carbohydrate_g:9, fat_g:2,
@@ -1101,7 +1103,7 @@ const DIET_PLAN = {
     { id:'pre_treino', label:'Pré-treino',
       proteinTarget_g:30, carbohydrateTarget_g:10,
       quantity:'30 g de proteína + ~10 g de carbo',
-      note:'Noite (pré + pós): ~540 kcal no total; gordura restante entre os dois.' },
+      note:'Noite (pré + pós): ~540 kcal no total; gordura restante entre os dois. Exemplo histórico: com almoço genérico de 812,1 kcal e leite de 80 kcal, soma 1.612,1 kcal, não 1.600; não comprova os pisos de proteína e gordura.' },
     { id:'pos_treino', label:'Pós-treino',
       proteinTarget_g:30, carbohydrateTarget_g:10,
       quantity:'30 g de proteína + ~10 g de carbo',
@@ -1109,38 +1111,46 @@ const DIET_PLAN = {
   ]
 };
 
-function getDietWeekPlan(week, _config = {}, now = new Date()) {
+function getDietWeekPlan(week, _config = {}, referenceDate = null) {
   const requestedWeek = Number(week);
   const safeWeek = Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek) ? requestedWeek : 1;
   const trial = DIET_PLAN.trial;
-  const today = now instanceof Date && Number.isFinite(now.getTime())
-    ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  // Cada semana do bloco representa sua segunda-feira local, não o dia de visita.
+  const [year, month, day] = BLOCO_DES694.inicio.split('-').map(Number);
+  const weekDate = new Date(year, month - 1, day + (safeWeek - 1) * 7, 12);
+  const date = referenceDate === null ? weekDate : referenceDate;
+  const today = date instanceof Date && Number.isFinite(date.getTime())
+    ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     : '';
   const validBlockWeek = Number.isInteger(requestedWeek)
     && Object.prototype.hasOwnProperty.call(DIET_PLAN.weeks, requestedWeek);
   const trialWeek = validBlockWeek && requestedWeek === trial.week;
   const trialActive = trialWeek && today >= trial.startsOn && today <= trial.endsOn;
-  const trialExpired = trialWeek && today > trial.endsOn;
-  const plan = trialActive ? trial : DIET_PLAN.base;
-  const meals = trialActive ? DIET_PLAN.trialMeals : DIET_PLAN.baseMeals;
+  const currentActive = today >= DIET_PLAN.currentStartsOn;
+  const earlyCut = today >= '2026-09-28' && today < '2026-10-06';
+  const plan = trialActive || currentActive ? trial : DIET_PLAN.base;
+  const meals = earlyCut ? [] : currentActive ? DIET_PLAN.baseMeals.map(meal => meal.id === 'almoco'
+    ? { ...meal, quantity:'350 g de carne/mistura + 400 g de vegetais',
+        note:'Estimativa da planilha para linhas genéricas: 812,1 kcal; depende dos ingredientes e preparo reais.' }
+    : meal) : (trialActive ? DIET_PLAN.trialMeals : DIET_PLAN.baseMeals);
   return {
-    version: trialActive ? DIET_PLAN.version : DIET_PLAN.baseContractVersion,
+    version: currentActive ? DIET_PLAN.currentVersion : (trialActive ? DIET_PLAN.version : (earlyCut ? (today < '2026-09-30' ? 'v9b' : 'v9c') : DIET_PLAN.baseContractVersion)),
     contract: DIET_PLAN.contract, week: safeWeek, phase: 'cut',
-    label: trialActive ? trial.label : (trialExpired ? `${DIET_PLAN.base.label} · pós-teste` : DIET_PLAN.base.label),
-    totalCalories: plan.totalCalories, approximateCalories: trialActive,
-    calorieRule: plan.calorieRule,
+    label: currentActive ? 'Cut · 1.600 kcal · com café' : (earlyCut ? 'Cut histórico · 1.850 kcal' : plan.label),
+    totalCalories: earlyCut ? 1850 : plan.totalCalories, approximateCalories: trialActive,
+    calorieRule: currentActive ? '1.600 kcal/dia (plano vigente).' : (earlyCut ? '1.850 kcal/dia (contrato histórico).' : plan.calorieRule),
     protein_g: plan.protein_g, fat_g: plan.fat_g,
-    carbohydrateTarget_g: plan.carbohydrateTarget_g,
-    carbohydrateApproximate: plan.carbohydrateApproximate,
-    note: trialExpired
-      ? `Teste temporário encerrado em ${trial.endsOn}; volta ao contrato-base v9d de 1.700 kcal/dia até nova revisão. ${DIET_PLAN.base.note}`
-      : plan.note,
+    carbohydrateTarget_g: currentActive ? null : plan.carbohydrateTarget_g,
+    carbohydrateApproximate: currentActive ? false : plan.carbohydrateApproximate,
+    note: currentActive
+      ? 'Plano com café ativo. Plano sem café: futuro, sem data definida e sem ativação; retira 2 ovos e 200 g de tomate do café da manhã e libera 180 kcal para a noite se o restante for igual, após fechar proteína e gordura do dia. Almoço e lanche permanecem iguais se mantidos; outros consumos e adições reduzem o saldo. Os pisos não estão comprovados sem composição, preparo, quantidades e rótulos. Carboidrato fecha as calorias após os pisos de proteína e gordura. Auditoria D8: pesar a janela da noite 7/7 dias durante o cut; não é pré-condição para cortar. Manter 30 min semanais de Z2 em bicicleta/ergométrica, fora do volume de corrida. Refeição livre: 1 por semana, limitada a um prato controlado, sem repetir.'
+      : earlyCut ? 'Histórico: v9b em 28–29/09, v9c em 30/09–05/10, ambos 1.850 kcal. Desde 06/10, v9d passou a 1.700 kcal. A semana pode abranger mudanças; consumo e composição histórica não são inferidos.' : plan.note,
     meals: meals.map(meal => ({
       ...meal, labelNutrition: meal.labelNutrition ? { ...meal.labelNutrition } : null,
       proteinRange_g: meal.proteinRange_g ? [...meal.proteinRange_g] : null
     })),
     trialId: trial.id, trialStart: trial.startsOn, trialEnd: trial.endsOn,
-    trialActive, trialExpired,
+    trialActive, currentActive,
     macroReconciliationNote: null,
     caloriesForCarbsAtFloors: null, carbsAtFloors_g: null
   };
@@ -1162,10 +1172,10 @@ function renderDietPlanMarkup(plan) {
   const waitingHtml = plan.phase === 'awaiting_review'
     ? `<div class="diet-plan-warning">${plan.calorieRule}</div>`
     : '';
-  const expiredHtml = plan.trialExpired
-    ? `<div class="diet-plan-warning">Teste de 1.600 kcal encerrado; aplica-se novamente o contrato-base v9d.</div>`
+  const historicalTrialHtml = plan.trialActive
+    ? `<div class="diet-plan-warning">Teste histórico de 19–25/10 encerrado; em 26/10 o v9e foi autorizado, sem retorno automático ao v9d. Não comprova consumo.</div>`
     : '';
-  const weekChange = plan.trialActive ? DIET_PLAN.weekChanges[DIET_PLAN.trial.week] : null;
+  const weekChange = (plan.trialActive || plan.currentActive) ? DIET_PLAN.weekChanges[DIET_PLAN.trial.week] : null;
   const changeHtml = weekChange
     ? `<div class="diet-plan-change">${weekChange.text}</div>`
     : '';
@@ -1175,7 +1185,8 @@ function renderDietPlanMarkup(plan) {
   const meals = plan.meals.map(meal => {
     const targets = [];
     if (Number.isFinite(meal.kcal)) {
-      targets.push(`~${meal.kcal} kcal`, `P${meal.protein_g} C${meal.carbohydrate_g} G${meal.fat_g}`);
+      const macros = meal.sourceMacros || { protein:meal.protein_g, carbohydrate:meal.carbohydrate_g, fat:meal.fat_g };
+      targets.push(`~${meal.kcal} kcal`, `P${macros.protein} C${macros.carbohydrate} G${macros.fat}`);
     } else {
       if (Array.isArray(meal.proteinRange_g)) targets.push(`P ${meal.proteinRange_g[0]}–${meal.proteinRange_g[1]} g`);
       else if (Number.isFinite(meal.proteinTarget_g)) targets.push(`P ≈${meal.proteinTarget_g} g`);
@@ -1191,7 +1202,7 @@ function renderDietPlanMarkup(plan) {
       ${meal.uncertainty ? `<div class="diet-plan-uncertainty">${meal.uncertainty}</div>` : ''}
     </div>`;
   }).join('');
-  const mealGuidance = plan.trialActive
+  const mealGuidance = plan.trialActive || plan.currentActive
     ? ''
     : 'Pré/pós: guia-base de 25–35 g de proteína em cada refeição; carbo pesado e distribuído flexivelmente entre elas, dentro do total diário.';
   const trialBase = '';
@@ -1200,7 +1211,7 @@ function renderDietPlanMarkup(plan) {
     <div class="diet-plan-meta">${plan.note}</div>
     ${dailyTargetsHtml}${macroNote}${trialBase}
     ${mealGuidance ? `<div class="diet-plan-note">${mealGuidance}</div>` : ''}
-    ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${expiredHtml}
+    ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${historicalTrialHtml}
   </section>`;
 }
 
@@ -2883,10 +2894,10 @@ const App = {
       <div class="readiness-footer">${ageLabel}</div>`;
   },
 
-  renderDietPlan(week, config, targetId = 'diet-plan') {
+  renderDietPlan(week, config, targetId = 'diet-plan', referenceDate = null) {
     const el = document.getElementById(targetId);
     if (!el) return;
-    el.innerHTML = renderDietPlanMarkup(getDietWeekPlan(week, config));
+    el.innerHTML = renderDietPlanMarkup(getDietWeekPlan(week, config, referenceDate));
   },
 
   showDiet() {
@@ -2950,7 +2961,7 @@ const App = {
       </div>`;
 
     refreshCurrentWeekRunningTargets();
-    this.renderDietPlan(week, config);
+    this.renderDietPlan(week, config, 'diet-plan', new Date());
 
     // Session cards
     const picker = document.getElementById('session-picker');
