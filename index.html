@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v30 · 10/11</div>
+      <div class="app-version">v31 · 10/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1181,9 +1181,15 @@ function renderDietPlanMarkup(plan) {
   return `<section class="diet-plan-card">
     <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · S${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
     ${note ? `<div class="diet-plan-meta">${note}</div>` : ''}
+    ${plan.currentActive ? '<div class="diet-plan-title">Dias úteis</div>' : ''}
     ${dailyTargetsHtml}${macroNote}${trialBase}
     ${mealGuidance ? `<div class="diet-plan-note">${mealGuidance}</div>` : ''}
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${historicalTrialHtml}
+    ${plan.currentActive ? `<div class="diet-plan-meal"><div class="diet-plan-title">Fim de semana</div>
+      <div class="diet-plan-quantity">Estimativa do plano: ≈1.600 kcal · 205 g proteína · 112 g carbo · 35 g gordura.</div>
+      <div class="diet-plan-quantity"><strong>Café da manhã:</strong> 20 g de aveia + 100 g de banana + 2 ovos + 20 g de leite condensado.</div>
+      <div class="diet-plan-quantity"><strong>Almoço e Jantar (cada):</strong> 284 g de peito de frango cozido, sem pele e sem osso + 284 g de cabotiá cozida, sem óleo.</div>
+      <div class="diet-plan-note">Gordura abaixo de 60 g aprovada neste plano. A refeição livre pode elevar calorias e gordura; não presume consumo.</div></div>` : ''}
   </section>`;
 }
 
@@ -2902,8 +2908,10 @@ const App = {
     const runTargetLabel = weekPlan ? 'min meta' : 'min teto';
     const pct5k = Math.min((runDone / runTarget) * 100, 100);
     const noteHtml = wd.nota ? `<div class="week-summary-note">${wd.nota}</div>` : '';
-    // Erro nunca fica mudo (CLAUDE.md): se o config veio de um plano/bloco antigo, diz.
-    const warnHtml = config.blocoMigratedFrom
+    // Oculta apenas a transição concluída B2/S6 → B3; outros avisos permanecem.
+    const transicaoB2Concluida = config.blocoMigratedFrom === 'B2-2026-09-28'
+      && config.blocoMigratedFromWeek === 6 && BLOCO_DES694.id === 'B3-2026-11-09';
+    const warnHtml = config.blocoMigratedFrom && !transicaoB2Concluida
       ? `<div class="week-summary-warning">⚠ Bloco ${config.blocoMigratedFrom} encerrado (estava na semana ${config.blocoMigratedFromWeek}); novo bloco ${BLOCO_DES694.id} inicia na semana 1.</div>`
       : config.weekMigratedFrom
       ? `<div class="week-summary-warning">⚠ Semana ${config.weekMigratedFrom} era do plano de 24 semanas; realinhada para ${week} (bloco ${BLOCO_DES694.id}).</div>`
@@ -2938,9 +2946,10 @@ const App = {
 
     refreshCurrentWeekRunningTargets();
 
-    // Session cards
+    // Session cards: somente o resumo omite o teto de FC 162.
+    const cardRunLabel = dd => runLabel(dd, wd, week).replace(' · FC ≤ 162', '');
     const picker = document.getElementById('session-picker');
-    picker.innerHTML = DAY_DEFS.map(dd => {
+    picker.innerHTML = DAY_DEFS.filter(dd => !(dd.day === 6 && dd.type === 'accessories')).map(dd => {
       const done = Storage.isDayCompleted(dd.day);
       let scheme = '';
       if (dd.type === 'strength' && wd.p && !wd.special) {
@@ -2951,9 +2960,9 @@ const App = {
       } else if (dd.type === 'combined' && wd.p && !wd.special) {
         const s = dd.strength.level === 'primary' ? wd.p : wd.sec;
         const w = Workout.calcWeight(config.oneRM[dd.strength.lift], s.pct);
-        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${runLabel(dd, wd, week)}</strong>`;
+        scheme = `${s.s}x${s.r} @ ${s.pct}% = <strong class="purple">${w}kg</strong> + <strong class="green">${cardRunLabel(dd)}</strong>`;
       } else if (dd.type === 'running') {
-        scheme = `<strong class="green">${runLabel(dd, wd, week)}</strong>`;
+        scheme = `<strong class="green">${cardRunLabel(dd)}</strong>`;
       } else if (dd.type === 'accessories') {
         scheme = `<strong class="amber">7 exercicios</strong>`;
       } else if (wd.special === '1rm_test') {
@@ -4097,7 +4106,6 @@ const App = {
   },
 
   async cancelWorkout() {
-    if (!await this.confirmModal('Cancelar treino? Os dados nao salvos serao perdidos.', { okLabel: 'Cancelar treino', cancelLabel: 'Voltar', danger: true })) return;
     this.currentWorkout = null;
     Storage.clearInProgress();
     this.stopTimer();
