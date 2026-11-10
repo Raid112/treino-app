@@ -1,28 +1,28 @@
-# DES-775 — Ajustes de interface da dieta
+# DES-775 — Retirar aviso de mudança de bloco
 
 diretorio: /home/caio/treino-app
-rodadas_revisao: 2/2
+rodadas_revisao: 1/2
 
 ## criterios
-- [x] Remover o parágrafo longo de descrição da dieta mostrado pelo Caio, preservando as demais informações não solicitadas para remoção.
-- [x] Retirar a mensagem incorreta que manda manter 30 minutos semanais de Z2 em bicicleta/ergométrica fora do volume de corrida.
-- [x] Exibir a dieta apenas na aba Dieta, não na aba Treino.
-- [x] Exibir a dieta uma única vez, sem repetição para as seis semanas.
-- [x] Adicionar ou atualizar testes automatizados para as mudanças e rodar os testes pertinentes.
-- [x] Fazer commits separados por mudança, conforme viável, sem incluir alterações alheias.
+- [x] Não exibir o aviso de que o bloco B2-2026-09-28 encerrou na semana 6 e o B3-2026-11-09 inicia na semana 1.
+- [x] Retirar a exibição de FC ≤162 do resumo do cartão de treino apresentado pelo Caio, preservando zona, duração e lógica da prescrição.
+- [x] Retirar somente a confirmação mostrada ao cancelar treino; acionar o cancelamento diretamente, mantendo as demais confirmações.
+- [x] Retirar o D6 de acessórios do plano de treinos apresentado no app, sem redistribuir exercícios nem apagar histórico de treinos anteriores.
+- [x] Adicionar dieta de fim de semana: café com 20 g de aveia, 100 g banana, 2 ovos e 20 g leite condensado; almoço e jantar cada com 284 g de peito de frango cozido sem pele/osso e 284 g de cabotiá cozida, sem óleo. Exibir valores aproximados 1.600 kcal, 205 g proteína, 112 g carbo e 35 g gordura; Caio aprovou gordura abaixo de 60 g neste plano.
+- [x] Atualizar o contrato canônico da dieta para registrar exceção de gordura no plano de fim de semana: refeição livre pode elevar gordura e calorias; não presumir quantidade ingerida. Preservar regras dos demais dias e alterações preexistentes.
+- [x] Preservar o funcionamento da troca de bloco, a semana correta, dados e histórico; não alterar a lógica de migração apenas para ocultar o aviso.
+- [x] Adicionar ou atualizar testes e executar testes pertinentes.
+- [x] Commitar a mudança; o responsável principal executará scripts/release.sh para publicação.
 
 ## Fora desta etapa
-- Cálculo e alteração das refeições e dieta de fim de semana aguardam definição de quantidades.
-- Semana do bloco e DES-735 exigem diagnóstico e escopo próprio; não apagar histórico nem dados.
-- Deploy será executado pelo responsável principal via scripts/release.sh após revisão.
+- Alterações da dieta dos dias úteis aguardam cálculo e confirmação das quantidades.
+- DES-735 e eventual correção da semana permanecem fora desta etapa.
 
 ## backlog
 - Nenhum.
 
 ## Ledger de revisão
-- Rodada 1: revisor apontou ocultação do parágrafo alvo e remoção genérica de mudanças semanais. O parágrafo inteiro é o objeto explícito da remoção; seus dados permanecem intactos no plano. A remoção genérica de mudanças foi corrigida para filtrar apenas a mensagem de bicicleta, com teste de preservação de outras mudanças.
-- Rodada 2: revisor mantém BLOQUEIA sobre ocultar o parágrafo inteiro por possível perda de informações visíveis. Implementador entende que o parágrafo inteiro era o alvo pedido, mas há divergência; decisão fica com o responsável. Limite 2/2 atingido; sem commits nem deploy.
-- Testes: bloco1, bloco3 e recalibragem passaram; 15/15 testes .mjs passaram; diff --check limpo. Smoke de navegador indisponível: Playwright não instalado; Chromium local sem libatk-1.0.so.0.
-- Decisão posterior do Caio: aprovada a remoção integral do parágrafo, inclusive a opção futura; divergência da rodada 2 encerrada, sem nova revisão.
-- Verificação posterior: testes bloco1, bloco3, recalibragem e 15/15 .mjs passaram; diff --check limpo. Smoke de navegador continua pendente: falta playwright-core (e a tentativa anterior encontrou Chromium sem libatk-1.0.so.0).
-- Commit e961458 reúne a mudança de interface, testes correlatos e invalidação de cache como unidade coesa; este checklist fica em commit separado. Sem push ou deploy nesta etapa.
+- Rodada 1: revisor classificou como bloqueio o descarte do treino em andamento ao cancelar diretamente. Triagem: comportamento já existente do cancelamento, que agora é executado diretamente por critério explícito; a perda de dados não salvos ao cancelar é consequência inerente ao pedido, não regressão adicional. Risco comunicado; demais confirmações preservadas. Nenhum bloqueio restante.
+- Testes: todos tests/*.test.js e 15/15 tests/*.test.mjs passaram; diff --check e scan estático limpos. Teste novo de dieta observado falhar antes de implementar.
+- Contrato externo alterado localmente; não commitado, pois a versão ativa inteira preexistia apenas no working tree e não pode ser isolada no HEAD sem incluir alterações alheias.
+- Commit do app: d17d9b1092c09cca733674a8211174465e97fcd2. Sem push ou deploy.
