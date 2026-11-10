@@ -95,7 +95,18 @@ try {
     if (/Plano sem café: futuro|30 min[^.]*bicicleta/i.test(dieta)) falhas.push(`S${semana}: texto removido aparece na dieta`);
     const esperado = await page.evaluate(() => getDietWeekPlan(Storage.getConfig().currentWeek, {}, new Date()));
     const esperadoKcal = `${Number(esperado.totalCalories).toLocaleString('pt-BR')} kcal/dia`;
-    if (!dieta.includes(esperadoKcal) || await page.locator('#diet .diet-plan-meal').count() !== esperado.meals.length) falhas.push(`S${semana}: dieta vigente ou refeições divergentes`);
+    const refeicoes = await page.locator('#diet .diet-plan-meals > .diet-plan-meal').count();
+    if (!dieta.includes(esperadoKcal) || refeicoes !== esperado.meals.length) falhas.push(`S${semana}: dieta vigente ou refeições divergentes (kcal esperadas: ${esperadoKcal}; refeições: ${refeicoes}/${esperado.meals.length})`);
+    if (esperado.currentActive) {
+      const fimDeSemana = page.locator('#diet .diet-plan-card > .diet-plan-meal');
+      if (await fimDeSemana.count() !== 1) falhas.push(`S${semana}: plano de fim de semana ausente ou duplicado`);
+      else {
+        const texto = await fimDeSemana.innerText();
+        for (const item of ['Fim de semana', '≈1.600 kcal', '205 g proteína', '112 g carbo', '35 g gordura', '20 g de aveia', '100 g de banana', '2 ovos', '20 g de leite condensado', '284 g de peito de frango', '284 g de cabotiá', 'sem óleo', 'Almoço e Jantar (cada)']) {
+          if (!texto.includes(item)) falhas.push(`S${semana}: plano de fim de semana sem ${item}`);
+        }
+      }
+    }
     await page.click('.tab-item[data-screen="home"]');
     const dias = await page.locator('#session-picker .session-card').evaluateAll(cs => cs.map(c => c.dataset.day));
     if (!dias.length) falhas.push(`S${semana}: nenhuma sessão no seletor`);
