@@ -25,6 +25,7 @@ jobs:
       - name: Lógica (bloco, dieta, corrida, recalibragem)
         run: |
           node tests/bloco1.test.js
+          node tests/bloco3.test.js
           node tests/recalibragem.test.js
           node --test tests/*.test.mjs
       - name: Instala Chromium

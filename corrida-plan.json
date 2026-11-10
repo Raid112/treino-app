@@ -2,52 +2,52 @@
   "schema_version": 1,
   "status": "pronto",
   "natureza": "alvo_prescrito",
-  "semana_iso": "2026-W43",
-  "bloco_id": "B2-2026-09-28",
-  "semana_bloco": 4,
+  "semana_iso": "2026-W46",
+  "bloco_id": "B3-2026-11-09",
+  "semana_bloco": 1,
   "fase": "base",
   "approval": {
     "state": "approved",
-    "reference": "Telegram DM 8682995146 msg7348 (2026-10-19T23:10:15-03:00) \"Simmm\" + msg7349 (2026-10-19T23:11:03.068645-03:00) \"Publica\"",
-    "approved_at": "2026-10-19T23:11:03.068645-03:00"
+    "reference": "Caio, sessão fora de cron em 09/11/2026: \"5-fecho, aplica\" (plano de corrida W46) + \"pode mudar no app ja\"",
+    "approved_at": "2026-11-09T20:30:00-03:00"
   },
   "source": {
-    "review_run_id": "LR4-2026-10-19-1001",
-    "prep_sha256": "c8f29abb4701cfca94b1fba88c864423334767dd78a49270267235163a3c34f0"
+    "review_run_id": "LR-2026-11-09-corrida-2026-W46",
+    "prep_sha256": "c74d00d960eae6d9d9b61077bffcf99735c15a9450dfa5635d9eed6fc8c407fd"
   },
   "faixa_volume_aprovada_min": [
-    158.8,
-    166.1
+    123.3,
+    137
   ],
   "sessoes": [
     {
       "dia_app": "D1",
       "papel": "agachamento",
-      "zona": "Z2",
-      "min": 30,
-      "fc_cap": 150,
+      "zona": "Z3",
+      "min": 35,
+      "fc_cap": 162,
       "planned_date": null
     },
     {
       "dia_app": "D2",
       "papel": "terra",
       "zona": "intervalado",
-      "min": 65.8,
+      "min": 44,
       "fc_cap": 162,
       "planned_date": null,
       "segmentos": [
         {
           "tipo": "continuo",
-          "min": 15,
+          "min": 10,
           "zona": "Z2",
           "fc_cap": 150,
           "intensidade": "leve"
         },
         {
           "tipo": "intervalos",
-          "repeticoes": 4,
+          "repeticoes": 8,
           "forte": {
-            "min": 3,
+            "min": 1,
             "zona": "intervalo",
             "fc_cap": 162,
             "intensidade": "forte_controlado",
@@ -62,7 +62,7 @@
         },
         {
           "tipo": "continuo",
-          "min": 30.8,
+          "min": 10,
           "zona": "Z2",
           "fc_cap": 150,
           "intensidade": "leve"
@@ -73,19 +73,19 @@
       "dia_app": "D4",
       "papel": "long_run",
       "zona": "Z2",
-      "min": 63,
+      "min": 58,
       "fc_cap": 150,
       "planned_date": null
     }
   ],
   "totais": {
-    "total_semanal_min": 158.8,
-    "total_z2_min": 146.8,
-    "total_z3_min": 0.0,
-    "total_intervalo_min": 12.0,
-    "agachamento_z2_min": 30.0,
-    "terra_z2_min": 53.8,
-    "long_run_z2_min": 63.0
+    "total_semanal_min": 137.0,
+    "total_z2_min": 94.0,
+    "total_z3_min": 35.0,
+    "total_intervalo_min": 8.0,
+    "agachamento_z2_min": 0.0,
+    "terra_z2_min": 36.0,
+    "long_run_z2_min": 58.0
   },
   "regra_long_run": "total_z2_min - agachamento_z2_min - terra_z2_min",
   "long_minimo_min": 30,

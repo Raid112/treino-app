@@ -5,8 +5,15 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { createRequire } from 'node:module';
 const html = await readFile(path.join(repo, 'index.html'), 'utf8');
-const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+const liveScript = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+// Motor testado contra o bloco B2 arquivado (ver tests/fixtures/bloco-b2.js).
+const blocoA = liveScript?.indexOf('const BLOCO_DES694 = {') ?? -1;
+const blocoB = liveScript?.indexOf('// O teste histórico de 19–25/10') ?? -1;
+const script = liveScript && blocoA >= 0 && blocoB >= 0
+  ? liveScript.slice(0, blocoA) + createRequire(import.meta.url)('./fixtures/bloco-b2.js') + liveScript.slice(blocoB)
+  : null;
 assert.ok(script, 'index.html must contain its application script');
 const cut = script.indexOf('// ========== CSV EXPORT ==========');
 const dataLayer = script.slice(0, cut > 0 ? cut : script.length);

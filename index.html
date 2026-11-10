@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v28 · 26/10</div>
+      <div class="app-version">v29 · 09/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -973,64 +973,36 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 // ========== DATA CONSTANTS ==========
 
 const BLOCO_DES694 = {
-  id: 'B2-2026-09-28', inicio: '2026-09-28', validoAte: '2026-11-08',
+  id: 'B3-2026-11-09', inicio: '2026-11-09', validoAte: '2026-12-20',
   semanas: 6, metaDominante: 'saude+cut',
-  // Bloco B2 (28/09/2026): reset de bloco a pedido do Caio — mudanca grande de
-  // estrategia (semana 1 volta a ser hipertrofia, nao forca) reinicia a contagem
-  // de 6 semanas em vez de continuar a numeracao do B1. Regra permanente dele:
-  // toda mudanca grande de estrategia = bloco novo comecando na semana 1.
-  // Espelho de loops/bloco/bloco.json (KpiMaster). O Esqueleto e estavel pelas 6
-  // semanas, entao pode viver estatico aqui. O Contrato semanal NAO vive aqui:
+  // Bloco B3 (09/11/2026): o B2 venceu em 08/11 e o Caio confirmou bloco novo de 6
+  // semanas. Corrida troca o Z2 curto de esteira por intervalado na rua + Z3 continuo
+  // + longao na rua. Forca alterna hipertrofia (series de 8) e forca, 2 exercicios
+  // por treino, sem superset e sem top set. Regra permanente dele: mudanca grande de
+  // estrategia = bloco novo comecando na semana 1.
+  // Espelho de loops/bloco/bloco.json (KpiMaster). O Contrato semanal NAO vive aqui:
   // ele e gerado por loops/bin/contrato_semanal.py e muda toda segunda.
-  // qualidade: parametros da UNICA sessao de qualidade/semana (D2). As demais
-  // sessoes seguem zona/fcCap normais. Corrida e forca.sessoes ficam iguais ao B1
-  // (4 dias de barra: Squat, Deadlift secundario no D2, Bench+Squat, Deadlift+Bench).
-  // loops/bloco/bloco.json no KpiMaster tem que espelhar este bloco (id, alvos,
-  // pesoMa7Max), senao o contrato_semanal.py continua planejando pro B1.
   corrida: { fcCap: 150, zona: 'Z2', qualidadePermitida: true,
              sessaoMinimaMin: 20, volumeTetoMin: 180, sessoesAlvo: 3,
              teEsperado: [3.0, 4.0],
              qualidade: { zona: 'Z3', fcCap: 162 } },
   forca:   { rpeAlvo: 8, rpeMaxGateVerde: 9, sessoes: [2, 4], semSingles: true },
-  testeSaida: { tipo: '5k_rua', semana: 6, condicoes: 'recovery.flag verde e sem dor' },
-  alvos: { teste5kMax: '34:00', pesoMa7Max: 106.5, e1rmMin: 446 }
+  testeSaida: { tipo: '5k_rua', semana: 6, condicoes: 'recovery.flag verde e sem dor', status: 'suspenso' },
+  alvos: { teste5kMax: '34:00', pesoMa7Max: 105.5, e1rmMin: 446 }
 };
 
-// Forca do bloco 2. RPE 8 e o teto (9 so com gate verde) — os % sao a sugestao de
-// carga de partida, e a recalibragem corrige a partir do que foi levantado.
-// `sem_singles: true` do bloco = nenhuma semana emite r:1.
-// Temas reusam chaves existentes de EXECUTION_PROFILES de proposito: tema novo
-// quebraria EXECUTION_PROFILES[w.theme].label e sumiria com a super meta.
-// S1 volta a ser Hipertrofia (peso um pouco mais alto, sem top set) — e o motivo
-// do reset de bloco. S2/S3 seguem top sets nos tres lifts; S5 preserva os top sets
-// de bench/terra em RPE8 e substitui somente o agachamento primario por escadinha.
-// Semana 4 (deload) e 6 (taper/teste 5K) nao levam top set.
+// Forca do bloco 3 (decisao do Caio em 09/11/2026). Semanas impares = hipertrofia
+// (series de 8, super meta de reps na ultima serie); pares = forca (super meta de
+// carga). Sem top set, sem deload fixo e sem teste 5K na S6 (teste suspenso desde
+// 26/10). Os % sao a carga de partida; a recalibragem corrige pelo levantado.
+// Temas reusam chaves existentes de EXECUTION_PROFILES de proposito.
 const WEEK_DATA = {
-  1: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:3,r:8,pct:68}, sec:{s:3,r:10,pct:60} },
-  2: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:78}, sec:{s:2,r:5,pct:72},
-       topSets:[
-         { lift:'deadlift', reps:3, rpe:9, pct:90 },   // da vez
-         { lift:'bench',    reps:3, rpe:8, pct:85 },
-         { lift:'squat',    reps:3, rpe:8, pct:85 }
-       ] },
-  3: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:5,pct:80}, sec:{s:2,r:5,pct:75},
-       topSets:[
-         { lift:'bench',    reps:3, rpe:9, pct:90 },   // da vez
-         { lift:'deadlift', reps:3, rpe:8, pct:85 },
-         { lift:'squat',    reps:3, rpe:8, pct:85 }
-       ] },
-  4: { theme:'Deload', block:'Deload',      bn:1, p:{s:2,r:5,pct:62}, sec:{s:2,r:5,pct:58}, deload:true },
-  5: { theme:'Forca',  block:'Base (cut)',  bn:1, p:{s:3,r:4,pct:82}, sec:{s:2,r:5,pct:76}, rpeCap:8,
-       forceLadder:{ lift:'squat', loadPolicy:'no_increase', maxRpe:8,
-         steps:[{reps:5,rpeTarget:6},{reps:4,rpeTarget:7},{reps:3,rpeTarget:8}],
-         replaces:{sets:3,reps:4,totalReps:12} },
-       topSets:[
-         { lift:'bench',    reps:3, rpe:8, pct:85 },
-         { lift:'deadlift', reps:3, rpe:8, pct:85 }
-       ] },
-  6: { theme:'Deload', block:'Teste 5K',    bn:1, p:{s:2,r:5,pct:65}, sec:{s:2,r:5,pct:60},
-       deload:true, specialRun:'5k_test',
-       nota:'Taper de forca. A saida do bloco e o 5K de rua, nao um teste de 1RM.' }
+  1: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:4,r:8,pct:70},   sec:{s:3,r:8,pct:62.5} },
+  2: { theme:'Forca',       block:'Força (cut)',       bn:1, p:{s:4,r:5,pct:80},   sec:{s:3,r:5,pct:72.5} },
+  3: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:4,r:8,pct:72.5}, sec:{s:3,r:8,pct:65} },
+  4: { theme:'Forca',       block:'Força (cut)',       bn:1, p:{s:3,r:4,pct:85},   sec:{s:3,r:5,pct:75} },
+  5: { theme:'Hipertrofia', block:'Hipertrofia (cut)', bn:1, p:{s:3,r:8,pct:75},   sec:{s:2,r:8,pct:65} },
+  6: { theme:'Forca',       block:'Força (cut)',       bn:1, p:{s:3,r:3,pct:87.5}, sec:{s:2,r:5,pct:72.5} }
 };
 
 // O teste histórico de 19–25/10 permanece consultável; desde 26/10 o plano
@@ -1765,14 +1737,19 @@ function validateRunningPlanPayload(plan) {
       || !closeEnough(totals.terra_z2_min, terraZ2)) {
     errors.push('totais semanal/Z2/Z3/intervalos/terra-Z2 não fecham com as sessões');
   }
-  if (d1 && !closeEnough(totals.agachamento_z2_min, d1.min)
+  // agachamento_z2_min conta só o Z2 do D1: com D1 em Z3 (B3, 09/11/2026) ele é 0.
+  if (d1 && !closeEnough(totals.agachamento_z2_min, zoneMinutes.get('D1')?.Z2 ?? 0)
       || d4 && !closeEnough(totals.long_run_z2_min, d4.min)) {
     errors.push('totais diários não fecham com D1/D4');
   }
 
   if (plan.fase === 'base') {
-    if (d1 && (d1.zona !== 'Z2' || d1.fc_cap !== 150 || !closeEnough(d1.min, 30))) {
-      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150');
+    // D1 em Z2 segue travado em 30 min; desde o B3 o D1 também pode ser Z3 contínuo
+    // (FC≤162) com a duração aprovada pelo Caio.
+    const d1Z2 = d1 && d1.zona === 'Z2' && d1.fc_cap === 150 && closeEnough(d1.min, 30);
+    const d1Z3 = d1 && d1.zona === 'Z3' && d1.fc_cap === 162;
+    if (d1 && !d1Z2 && !d1Z3) {
+      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150 ou Z3 contínuo/FC≤162');
     }
     if (d2 && (!['Z3', 'intervalado'].includes(d2.zona) || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3 ou intervalado/FC≤162');
     if (d4 && d4.zona !== 'Z2') errors.push('semana regular: D4 Long Run deve ser Z2');

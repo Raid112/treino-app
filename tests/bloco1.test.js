@@ -20,7 +20,14 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!m) { console.error('FAIL: <script> nao encontrado'); process.exit(1); }
-const src = m[1];
+const src = (() => {
+  // Motor testado contra o bloco B2 arquivado (ver tests/fixtures/bloco-b2.js).
+  const live = m[1];
+  const a = live.indexOf('const BLOCO_DES694 = {');
+  const b = live.indexOf('// O teste histórico de 19–25/10');
+  if (a < 0 || b < 0) { console.error('FAIL: bloco não encontrado no index.html'); process.exit(1); }
+  return live.slice(0, a) + require('./fixtures/bloco-b2.js') + live.slice(b);
+})();
 
 let fail = 0;
 const ok = (c, msg) => { console.log((c ? 'PASS ' : 'FAIL ') + msg); if (!c) fail++; };
@@ -442,7 +449,7 @@ if (planContractHelpersAvailable) {
   const approvalWithoutZone = structuredClone(syntheticRunPlan);
   approvalWithoutZone.approval.approved_at = '2026-10-12T12:00:00';
   ok(!validateRunningPlanPayload(approvalWithoutZone).ok, 'aprovação sem fuso horário é rejeitada');
-  const publicSeed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'corrida-plan.json'), 'utf8'));
+  const publicSeed = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'corrida-plan-w43.json'), 'utf8'));
   ok(publicSeed.status === 'pronto' && publicSeed.semana_iso === '2026-W43'
      && publicSeed.approval?.state === 'approved'
      && validateRunningPlanPayload(publicSeed).ok

@@ -11,6 +11,8 @@ PWA de treino de força que executa o **bloco de 6 semanas** da DES-694 (`B2-202
 - **Consumo primário**: Android (PWA standalone). Considerar isso em qualquer decisão de UX/erro.
 - **Idioma da UI**: Português brasileiro
 
+> **Bloco vigente desde 09/11/2026: `B3-2026-11-09` (até 20/12).** Força alterna hipertrofia (séries de 8) e força, 2 exercícios por treino, sem top set, sem deload fixo e sem teste 5K na S6 (`WEEK_DATA`). As menções ao B2 abaixo são históricas. Testes: `tests/bloco1.test.js` e `running-plan-loader.test.mjs` exercitam o motor contra o B2 arquivado em `tests/fixtures/bloco-b2.js`; o bloco vigente e o `corrida-plan.json` publicado são conferidos em `tests/bloco3.test.js`. O validador do plano de corrida aceita D1 em Z3 contínuo (FC ≤ 162) além de 30 min Z2.
+
 ## Development
 
 ```bash

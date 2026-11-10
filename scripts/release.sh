@@ -12,7 +12,7 @@ bloqueia() { echo "BLOQUEADO: $*"; exit 2; }
 [ "$(git rev-parse --abbrev-ref HEAD)" = master ] || bloqueia "não está no master"
 [ -z "$(git status --porcelain)" ] || bloqueia "mudança sem commit: $(git status --porcelain | head -3 | tr '\n' ' ')"
 
-for t in tests/bloco1.test.js tests/recalibragem.test.js; do
+for t in tests/bloco1.test.js tests/bloco3.test.js tests/recalibragem.test.js; do
   out=$(node "$t" 2>&1) || bloqueia "$t: $(grep -m3 '^FAIL' <<<"$out" | tr '\n' ' ')"
 done
 out=$(node --test tests/*.test.mjs 2>&1) || bloqueia "testes .mjs: $(grep -m3 'not ok' <<<"$out" | tr '\n' ' ')"
