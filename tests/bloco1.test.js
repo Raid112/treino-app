@@ -217,8 +217,12 @@ ok(renderedDiet.includes('~540 kcal'),
    'tela diz quanto sobra pra noite (pré + pós)');
 ok(!renderedDiet.includes('restam 240 kcal'),
    'tela não inventa saldo de carbo a partir da divergência');
-ok(renderedDiet.includes('fora do volume de corrida'),
-   'tela mantém a bicicleta fora da corrida');
+ok(!/30 min.*bicicleta|bicicleta.*corrida/i.test(renderedDiet),
+   'tela não prescreve bicicleta');
+const originalChangeText = DIET_PLAN.weekChanges[4].text;
+DIET_PLAN.weekChanges[4].text = 'Outra informação preservada';
+ok(renderDietPlanMarkup(trialDiet).includes('Outra informação preservada'), 'outras mudanças seguem visíveis');
+DIET_PLAN.weekChanges[4].text = originalChangeText;
 ok(/· S4</.test(renderedDiet) && !/· W\d/.test(renderedDiet),
    'cabeçalho usa a semana do bloco (S4), não W4');
 const preMeal = meal('pre_treino');
@@ -240,12 +244,8 @@ ok(DIET_PLAN.weekChanges[4].kind === 'change'
    'S4 mantém a bicicleta Z2 semanal separada da corrida');
 const currentDiet = getDietWeekPlan(4, {}, new Date(2026, 9, 26, 12));
 const currentMarkup = renderDietPlanMarkup(currentDiet);
-ok(/carboidrato fecha as calorias/i.test(currentMarkup),
-   'v9e mantém a regra de carboidrato para fechar as calorias');
-ok(/auditoria D8.*7\/7.*durante o cut.*não é pré-condição/i.test(currentMarkup),
-   'v9e mantém auditoria D8 diária durante o cut sem exigir como pré-condição');
-ok(/refeição livre: 1 por semana, limitada a um prato controlado, sem repetir/i.test(currentMarkup),
-   'v9e mantém refeição livre semanal controlada sem repetir');
+ok(!currentMarkup.includes(currentDiet.note), 'parágrafo longo não aparece na tela');
+ok(!/30 min.*bicicleta|bicicleta.*corrida/i.test(currentMarkup), 'v9e não prescreve bicicleta');
 ok(currentDiet.carbohydrateTarget_g === null && currentDiet.meals.find(m => m.id === 'almoco').note.includes('812,1')
    && currentDiet.meals.every(m => m.protein_g == null && m.carbohydrate_g == null && m.fat_g == null),
    'v9e usa estimativa genérica condicionada e não inventa macros por refeição');
@@ -253,9 +253,7 @@ ok(currentDiet.totalCalories === 1600 && currentDiet.version === 'v9e'
    && currentDiet.trialActive === false && currentDiet.meals.find(m => m.id === 'cafe_tarde').quantity.includes('Café'),
    'a partir de 26/10 o contrato 1600 com café é ativo, não um teste');
 ok(currentMarkup.includes('1.600 kcal/dia') && !currentMarkup.includes('1.700 kcal')
-   && !currentMarkup.includes('Teste de 7 dias') && /sem café/i.test(currentMarkup)
-   && /futur[ao]/i.test(currentMarkup) && /sem data/i.test(currentMarkup),
-   'tela distingue plano ativo com café da opção futura sem café e sem data');
+   && !currentMarkup.includes('Teste de 7 dias'), 'tela mostra o plano ativo');
 for (const week of [5, 6]) {
   const plan = getDietWeekPlan(week);
   ok(plan.totalCalories === 1600 && plan.version === 'v9e'
@@ -269,14 +267,16 @@ for (const [week, version] of [[1, 'v9b'], [2, 'v9c']]) {
 }
 ok(getDietWeekPlan(3).version === 'v9d' && getDietWeekPlan(3).totalCalories === 1700,
    'S3 preserva v9d histórico');
+ok(!/30 min.*bicicleta|bicicleta.*corrida/i.test(renderDietPlanMarkup(getDietWeekPlan(3))),
+   'v9d histórico também não prescreve bicicleta');
 for (const week of [1, 4, 6]) {
   const homePlan = getDietWeekPlan(week, {}, new Date(2026, 9, 26, 12));
   ok(homePlan.version === 'v9e' && homePlan.totalCalories === 1600,
      `home em 26/10 usa v9e independente da S${week} do treino`);
 }
-ok(src.includes("this.renderDietPlan(week, config, 'diet-plan', new Date())")
-   && src.includes('this.renderDietPlan(Number(week), config, `diet-week-${week}`)'),
-   'home usa data atual e aba Dieta usa datas históricas da semana');
+ok(!src.includes("this.renderDietPlan(week, config, 'diet-plan', new Date())")
+   && !src.includes('`diet-week-${week}`'),
+   'home não renderiza dieta e aba Dieta não repete semanas');
 const selectedTrial = getDietWeekPlan(4);
 const selectedTrialMarkup = renderDietPlanMarkup(selectedTrial);
 ok(selectedTrial.trialActive && selectedTrial.version === DIET_PLAN.version
@@ -285,8 +285,8 @@ ok(selectedTrial.trialActive && selectedTrial.version === DIET_PLAN.version
    'S4 mostra teste histórico e sucessão v9e sem inventar retorno ao v9d');
 ok(/1.612,1/.test(selectedTrialMarkup) && /não.*1.600/i.test(selectedTrialMarkup),
    'saldo histórico tem ressalva de reconciliação calórica');
-ok(/180 kcal.*noite/i.test(currentMarkup) && /sem café.*futur/i.test(currentMarkup)
-   && /proteína e gordura/i.test(currentMarkup), 'alternativa futura descreve diferenças e limites');
+ok(/180 kcal.*noite/i.test(currentDiet.note) && /sem café.*futur/i.test(currentDiet.note)
+   && /proteína e gordura/i.test(currentDiet.note), 'dados da alternativa futura permanecem intactos');
 ok(/café e eventuais adições não incluídos/i.test(currentMarkup)
    && /pão, mel, leite em pó/i.test(currentMarkup), 'ressalvas e pesagem refletem contrato');
 const before = getDietWeekPlan(5, {}, new Date(2026, 9, 20, 12));

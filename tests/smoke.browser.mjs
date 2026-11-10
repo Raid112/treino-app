@@ -88,6 +88,15 @@ try {
     const atual = Number(await page.locator('#current-week').innerText());
     if (atual !== semana) { falhas.push(`semana ${semana}: navegação parou na ${atual}`); break; }
     await checaTela('home', `S${semana}-home`);
+    if (await page.locator('#home .diet-plan-card').count()) falhas.push(`S${semana}: dieta aparece no Treino`);
+    await page.click('.tab-item[data-screen="diet"]');
+    if (await page.locator('#diet .diet-plan-card').count() !== 1) falhas.push(`S${semana}: dieta não aparece uma única vez`);
+    const dieta = await page.locator('#diet').innerText();
+    if (/Plano sem café: futuro|30 min[^.]*bicicleta/i.test(dieta)) falhas.push(`S${semana}: texto removido aparece na dieta`);
+    const esperado = await page.evaluate(() => getDietWeekPlan(Storage.getConfig().currentWeek, {}, new Date()));
+    const esperadoKcal = `${Number(esperado.totalCalories).toLocaleString('pt-BR')} kcal/dia`;
+    if (!dieta.includes(esperadoKcal) || await page.locator('#diet .diet-plan-meal').count() !== esperado.meals.length) falhas.push(`S${semana}: dieta vigente ou refeições divergentes`);
+    await page.click('.tab-item[data-screen="home"]');
     const dias = await page.locator('#session-picker .session-card').evaluateAll(cs => cs.map(c => c.dataset.day));
     if (!dias.length) falhas.push(`S${semana}: nenhuma sessão no seletor`);
     for (const dia of dias) {

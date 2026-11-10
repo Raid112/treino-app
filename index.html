@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v29 · 09/11</div>
+      <div class="app-version">v30 · 10/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -872,7 +872,6 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
     <div id="readiness-tile" class="readiness-tile" style="display:none;"></div>
     <div id="week-summary" class="week-summary"></div>
     <div id="running-week-targets"></div>
-    <div id="diet-plan"></div>
     <div id="session-picker" class="session-picker"></div>
     <div id="sync-status" class="sync-status"></div>
   </div>
@@ -885,7 +884,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 
   <!-- DIET -->
   <div id="diet" class="screen">
-    <div class="history-header"><h2>Dieta por semana</h2></div>
+    <div class="history-header"><h2>Dieta</h2></div>
     <div class="diet-screen-note">Alvos operacionais exibidos por semana; não há rateio fixo de calorias ou carboidratos por refeição.</div>
     <div id="diet-list"></div>
   </div>
@@ -1148,9 +1147,10 @@ function renderDietPlanMarkup(plan) {
     ? `<div class="diet-plan-warning">Teste histórico de 19–25/10 encerrado; em 26/10 o v9e foi autorizado, sem retorno automático ao v9d. Não comprova consumo.</div>`
     : '';
   const weekChange = (plan.trialActive || plan.currentActive) ? DIET_PLAN.weekChanges[DIET_PLAN.trial.week] : null;
-  const changeHtml = weekChange
+  const changeHtml = weekChange && weekChange.text !== 'Manter 30 min de Z2 em bicicleta/ergométrica na semana, fora do volume de corrida.'
     ? `<div class="diet-plan-change">${weekChange.text}</div>`
     : '';
+  const note = plan.currentActive ? '' : plan.note.replace('Manter 30 min semanais de Z2 em bicicleta/ergométrica, fora do volume de corrida. ', '');
   const macroNote = plan.macroReconciliationNote
     ? `<div class="diet-plan-note">${plan.macroReconciliationNote}</div>`
     : '';
@@ -1180,7 +1180,7 @@ function renderDietPlanMarkup(plan) {
   const trialBase = '';
   return `<section class="diet-plan-card">
     <div class="diet-plan-header"><span class="diet-plan-title">DIETA · ${plan.label.toUpperCase()} · S${plan.week}</span><span class="diet-plan-kcal">${total}</span></div>
-    <div class="diet-plan-meta">${plan.note}</div>
+    ${note ? `<div class="diet-plan-meta">${note}</div>` : ''}
     ${dailyTargetsHtml}${macroNote}${trialBase}
     ${mealGuidance ? `<div class="diet-plan-note">${mealGuidance}</div>` : ''}
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${historicalTrialHtml}
@@ -2871,7 +2871,7 @@ const App = {
       <div class="readiness-footer">${ageLabel}</div>`;
   },
 
-  renderDietPlan(week, config, targetId = 'diet-plan', referenceDate = null) {
+  renderDietPlan(week, config, targetId = 'diet-list', referenceDate = null) {
     const el = document.getElementById(targetId);
     if (!el) return;
     el.innerHTML = renderDietPlanMarkup(getDietWeekPlan(week, config, referenceDate));
@@ -2881,8 +2881,7 @@ const App = {
     const config = Storage.getConfig();
     const list = document.getElementById('diet-list');
     if (!list) return;
-    list.innerHTML = Object.keys(DIET_PLAN.weeks).map(week => `<div id="diet-week-${week}"></div>`).join('');
-    Object.keys(DIET_PLAN.weeks).forEach(week => this.renderDietPlan(Number(week), config, `diet-week-${week}`));
+    this.renderDietPlan(config.currentWeek, config, 'diet-list', new Date());
     this.showScreen('diet');
   },
 
@@ -2938,7 +2937,6 @@ const App = {
       </div>`;
 
     refreshCurrentWeekRunningTargets();
-    this.renderDietPlan(week, config, 'diet-plan', new Date());
 
     // Session cards
     const picker = document.getElementById('session-picker');
