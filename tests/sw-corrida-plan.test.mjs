@@ -18,7 +18,7 @@ function loadWorker(fetchImpl, seed = []) {
   const caches = {
     open: async () => cache,
     match: async request => cacheEntries.get(typeof request === 'string' ? request : request.url),
-    keys: async () => ['treino-v30', 'treino-v31', 'treino-v32'],
+    keys: async () => ['treino-v31', 'treino-v32', 'treino-v33'],
     delete: async key => { deletedCaches.push(key); return true; },
   };
   const self = {
@@ -48,12 +48,12 @@ test('precache includes corrida-plan.json for first-install offline behavior', a
   assert.ok(worker.precacheAssets().includes('./corrida-plan.json'));
 });
 
-test('activation deletes stale cache and keeps current treino-v32', async () => {
+test('activation deletes stale cache and keeps current treino-v33', async () => {
   const worker = loadWorker(async () => new Response('{}'));
   let activationPromise;
   worker.listeners.get('activate')({ waitUntil: promise => { activationPromise = promise; } });
   await activationPromise;
-  assert.deepEqual(worker.deletedCaches, ['treino-v30', 'treino-v31']);
+  assert.deepEqual(worker.deletedCaches, ['treino-v31', 'treino-v32']);
 });
 
 test('network-first refresh returns and caches the latest approved-plan bytes', async () => {

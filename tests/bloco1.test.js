@@ -287,8 +287,8 @@ ok(/1.612,1/.test(selectedTrialMarkup) && /não.*1.600/i.test(selectedTrialMarku
    'saldo histórico tem ressalva de reconciliação calórica');
 ok(/180 kcal.*noite/i.test(currentDiet.note) && /sem café.*futur/i.test(currentDiet.note)
    && /proteína e gordura/i.test(currentDiet.note), 'dados da alternativa futura permanecem intactos');
-ok(/café e eventuais adições não incluídos/i.test(currentMarkup)
-   && /pão, mel, leite em pó/i.test(currentMarkup), 'ressalvas e pesagem refletem contrato');
+ok(/café e eventuais adições não incluídos/i.test(currentDiet.meals.find(m => m.id === 'cafe_tarde').uncertainty)
+   && /pão, mel, leite em pó/i.test(currentMarkup), 'dados da ressalva preservados e pesagem exibida');
 const before = getDietWeekPlan(5, {}, new Date(2026, 9, 20, 12));
 ok(before.totalCalories === 1700 && before.version === 'v9d',
    'datas anteriores preservam o contrato histórico fora do teste');

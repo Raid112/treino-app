@@ -90,15 +90,15 @@ try {
     await checaTela('home', `S${semana}-home`);
     if (await page.locator('#home .diet-plan-card').count()) falhas.push(`S${semana}: dieta aparece no Treino`);
     await page.click('.tab-item[data-screen="diet"]');
-    if (await page.locator('#diet .diet-plan-card').count() !== 1) falhas.push(`S${semana}: dieta não aparece uma única vez`);
     const dieta = await page.locator('#diet').innerText();
     if (/Plano sem café: futuro|30 min[^.]*bicicleta/i.test(dieta)) falhas.push(`S${semana}: texto removido aparece na dieta`);
     const esperado = await page.evaluate(() => getDietWeekPlan(Storage.getConfig().currentWeek, {}, new Date()));
+    if (await page.locator('#diet .diet-plan-card').count() !== (esperado.currentActive ? 2 : 1)) falhas.push(`S${semana}: quantidade de cartões da dieta divergente`);
     const esperadoKcal = `${Number(esperado.totalCalories).toLocaleString('pt-BR')} kcal/dia`;
     const refeicoes = await page.locator('#diet .diet-plan-meals > .diet-plan-meal').count();
     if (!dieta.includes(esperadoKcal) || refeicoes !== esperado.meals.length) falhas.push(`S${semana}: dieta vigente ou refeições divergentes (kcal esperadas: ${esperadoKcal}; refeições: ${refeicoes}/${esperado.meals.length})`);
     if (esperado.currentActive) {
-      const fimDeSemana = page.locator('#diet .diet-plan-card > .diet-plan-meal');
+      const fimDeSemana = page.locator('#diet .diet-weekend');
       if (await fimDeSemana.count() !== 1) falhas.push(`S${semana}: plano de fim de semana ausente ou duplicado`);
       else {
         const texto = await fimDeSemana.innerText();

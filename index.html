@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v32 · 10/11</div>
+      <div class="app-version">v33 · 10/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1150,6 +1150,26 @@ function renderDietPlanMarkup(plan) {
   const dailyTargetsHtml = dailyTargets.length
     ? `<div class="diet-plan-meta">${dailyTargets.join(' · ')}</div>`
     : '';
+  if (plan.currentActive) {
+    const meals = plan.meals.map(meal => `<div class="diet-plan-meal">
+      <span class="diet-plan-meal-name">${meal.label}</span>
+      <div class="diet-plan-quantity">${meal.quantity}</div>
+    </div>`).join('');
+    const breadGuidance = plan.meals.some(meal => meal.id === 'pipoca')
+      ? '<div class="diet-plan-note">Pré/pós: guia de 25–35 g de proteína por refeição; pesar o pão.</div>'
+      : '<div class="diet-plan-note">Pós: pesar pão, mel, leite em pó e demais itens.</div>';
+    return `<section class="diet-plan-card diet-weekdays">
+      <div class="diet-plan-header"><span class="diet-plan-title">Dias úteis</span><span class="diet-plan-kcal">${total}</span></div>
+      ${dailyTargetsHtml}${breadGuidance}<div class="diet-plan-meals">${meals}</div>
+      <div class="diet-plan-note">Refeição livre: 1 por semana, um prato sem repetir.</div>
+    </section>
+    <section class="diet-plan-card diet-weekend">
+      <div class="diet-plan-header"><span class="diet-plan-title">Fim de semana</span></div>
+      <div class="diet-plan-meta">Estimativa: ≈1.600 kcal · 205 g proteína · 112 g carbo · 35 g gordura</div>
+      <div class="diet-plan-meal"><span class="diet-plan-meal-name">Café da manhã</span><div class="diet-plan-quantity">20 g de aveia + 100 g de banana + 2 ovos + 20 g de leite condensado.</div></div>
+      <div class="diet-plan-meal"><span class="diet-plan-meal-name">Almoço e Jantar (cada)</span><div class="diet-plan-quantity">284 g de peito de frango cozido, sem pele e sem osso + 284 g de cabotiá cozida, sem óleo.</div></div>
+    </section>`;
+  }
   const waitingHtml = plan.phase === 'awaiting_review'
     ? `<div class="diet-plan-warning">${plan.calorieRule}</div>`
     : '';
@@ -1195,11 +1215,6 @@ function renderDietPlanMarkup(plan) {
     ${dailyTargetsHtml}${macroNote}${trialBase}
     ${mealGuidance ? `<div class="diet-plan-note">${mealGuidance}</div>` : ''}
     ${changeHtml}<div class="diet-plan-meals">${meals}</div>${waitingHtml}${historicalTrialHtml}
-    ${plan.currentActive ? `<div class="diet-plan-meal"><div class="diet-plan-title">Fim de semana</div>
-      <div class="diet-plan-quantity">Estimativa do plano: ≈1.600 kcal · 205 g proteína · 112 g carbo · 35 g gordura.</div>
-      <div class="diet-plan-quantity"><strong>Café da manhã:</strong> 20 g de aveia + 100 g de banana + 2 ovos + 20 g de leite condensado.</div>
-      <div class="diet-plan-quantity"><strong>Almoço e Jantar (cada):</strong> 284 g de peito de frango cozido, sem pele e sem osso + 284 g de cabotiá cozida, sem óleo.</div>
-      <div class="diet-plan-note">Gordura abaixo de 60 g aprovada neste plano. A refeição livre pode elevar calorias e gordura; não presume consumo.</div></div>` : ''}
   </section>`;
 }
 
