@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v31 · 10/11</div>
+      <div class="app-version">v32 · 10/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1098,22 +1098,32 @@ function getDietWeekPlan(week, _config = {}, referenceDate = null) {
   const trialWeek = validBlockWeek && requestedWeek === trial.week;
   const trialActive = trialWeek && today >= trial.startsOn && today <= trial.endsOn;
   const currentActive = today >= DIET_PLAN.currentStartsOn;
+  const noBreakfastActive = today >= '2026-11-10';
   const earlyCut = today >= '2026-09-28' && today < '2026-10-06';
   const plan = trialActive || currentActive ? trial : DIET_PLAN.base;
-  const meals = earlyCut ? [] : currentActive ? DIET_PLAN.baseMeals.map(meal => meal.id === 'almoco'
+  let meals = earlyCut ? [] : currentActive ? DIET_PLAN.baseMeals.map(meal => meal.id === 'almoco'
     ? { ...meal, quantity:'350 g de carne/mistura + 400 g de vegetais',
         note:'Estimativa da planilha para linhas genéricas: 812,1 kcal; depende dos ingredientes e preparo reais.' }
     : meal) : (trialActive ? DIET_PLAN.trialMeals : DIET_PLAN.baseMeals);
+  if (noBreakfastActive) {
+    meals = meals.filter(meal => meal.id !== 'cafe_manha').map(meal =>
+      ['pre_treino', 'pos_treino'].includes(meal.id)
+        ? { ...meal, quantity:'100 g de peito de frango cozido, pesado pronto + 1 pão francês', note:'Guia: 25–35 g de proteína por refeição; pesar o pão.' }
+        : meal);
+    meals.push({ id:'pipoca', label:'Pipoca', quantity:'30 g de milho cru, feita em pipoqueira a ar, sem óleo', note:'' });
+  }
   return {
     version: currentActive ? DIET_PLAN.currentVersion : (trialActive ? DIET_PLAN.version : (earlyCut ? (today < '2026-09-30' ? 'v9b' : 'v9c') : DIET_PLAN.baseContractVersion)),
     contract: DIET_PLAN.contract, week: safeWeek, phase: 'cut',
-    label: currentActive ? 'Cut · 1.600 kcal · com café' : (earlyCut ? 'Cut histórico · 1.850 kcal' : plan.label),
+    label: noBreakfastActive ? 'Cut · 1.600 kcal · sem café da manhã' : currentActive ? 'Cut · 1.600 kcal · com café' : (earlyCut ? 'Cut histórico · 1.850 kcal' : plan.label),
     totalCalories: earlyCut ? 1850 : plan.totalCalories, approximateCalories: trialActive,
     calorieRule: currentActive ? '1.600 kcal/dia (plano vigente).' : (earlyCut ? '1.850 kcal/dia (contrato histórico).' : plan.calorieRule),
     protein_g: plan.protein_g, fat_g: plan.fat_g,
     carbohydrateTarget_g: currentActive ? null : plan.carbohydrateTarget_g,
     carbohydrateApproximate: currentActive ? false : plan.carbohydrateApproximate,
-    note: currentActive
+    note: noBreakfastActive
+      ? 'Plano de dias úteis sem café da manhã autorizado em 10/11/2026. Estimativa ≈1.605 kcal; pisos de proteína e gordura não comprovados. Não comprova consumo.'
+      : currentActive
       ? 'Plano com café ativo. Plano sem café: futuro, sem data definida e sem ativação; retira 2 ovos e 200 g de tomate do café da manhã e libera 180 kcal para a noite se o restante for igual, após fechar proteína e gordura do dia. Almoço e lanche permanecem iguais se mantidos; outros consumos e adições reduzem o saldo. Os pisos não estão comprovados sem composição, preparo, quantidades e rótulos. Carboidrato fecha as calorias após os pisos de proteína e gordura. Auditoria D8: pesar a janela da noite 7/7 dias durante o cut; não é pré-condição para cortar. Manter 30 min semanais de Z2 em bicicleta/ergométrica, fora do volume de corrida. Refeição livre: 1 por semana, limitada a um prato controlado, sem repetir.'
       : earlyCut ? 'Histórico: v9b em 28–29/09, v9c em 30/09–05/10, ambos 1.850 kcal. Desde 06/10, v9d passou a 1.700 kcal. A semana pode abranger mudanças; consumo e composição histórica não são inferidos.' : plan.note,
     meals: meals.map(meal => ({
@@ -1122,7 +1132,7 @@ function getDietWeekPlan(week, _config = {}, referenceDate = null) {
     })),
     trialId: trial.id, trialStart: trial.startsOn, trialEnd: trial.endsOn,
     trialActive, currentActive,
-    macroReconciliationNote: null,
+    macroReconciliationNote: noBreakfastActive ? 'Dias úteis: estimativa ≈1.605 kcal; composição da mistura e tamanho do pão variam. Pisos de proteína (205 g) e gordura (60 g) não comprovados. Plano, não registro de consumo.' : null,
     caloriesForCarbsAtFloors: null, carbsAtFloors_g: null
   };
 }
