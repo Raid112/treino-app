@@ -21,6 +21,15 @@ for (const id of ['pre_treino', 'pos_treino']) assert.equal(current.meals.find(m
 assert.match(current.meals.find(m => m.id === 'pipoca').quantity, /30 g de milho cru.*ar.*sem óleo/);
 assert.match(markup, /≈1\.605 kcal/);
 assert.match(markup, /Pisos de proteína \(205 g\) e gordura \(60 g\) não comprovados/);
+// O cartão apresenta os dois planos simultaneamente, inclusive aos sábados e domingos.
+const weekendSection = html => html.slice(html.indexOf('<div class="diet-plan-title">Fim de semana</div>'));
+const baselineWeekend = weekendSection(context.render(context.getPlan(1, {}, new Date(2026, 10, 9, 12))));
+for (const day of [10, 14, 15, 16]) {
+  const rendered = context.render(context.getPlan(1, {}, new Date(2026, 10, day, 12)));
+  assert.equal(weekendSection(rendered), baselineWeekend, `fim de semana preservado em 2026-11-${day}`);
+  assert.match(rendered, /Dias úteis/);
+  assert.match(rendered, /Fim de semana/);
+}
 const previous = context.getPlan(1, {}, new Date(2026, 10, 9, 12));
 assert.ok(previous.meals.some(m => m.id === 'cafe_manha'));
 assert.ok(!previous.meals.some(m => m.id === 'pipoca'));
