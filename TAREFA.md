@@ -1,12 +1,12 @@
 # Corrida — remover verificador de divergência do plano
 
 diretorio: /home/caio/treino-app (com ajuste autorizado no KpiMaster)
-rodadas_revisao: 1/2
+rodadas_revisao: 2/2
 
 ## criterios
-- [ ] Remover a verificação que impede publicar o plano aprovado por divergência de volume/intervalados com o contrato anterior; preservar validações estruturais e dados não relacionados.
-- [ ] Publicar fielmente o plano aprovado: A 35 min no agachamento, B 44 min no terra, longão 66 min Z2; não fabricar dados de recuperação ou decisão de freios.
-- [ ] Testar, commitar e verificar os dados publicados. O release do treino-app é exclusivo do agente principal.
+- [x] Remover a verificação que impede publicar o plano aprovado por divergência de volume/intervalados com o contrato anterior; preservar validações estruturais e dados não relacionados.
+- [x] Publicar fielmente o plano aprovado: A 35 min no agachamento, B 44 min no terra, longão 66 min Z2; Caio autorizou fazer o necessário diante do bloqueio de qualidade/F4, inclusive exceção explícita para essa prescrição, sem fabricar dados de recuperação ou apagar dados dos freios.
+- [x] Testar, commitar e verificar os dados publicados. O release do treino-app é exclusivo do agente principal.
 
 ## backlog
 - Nenhum.
@@ -16,6 +16,8 @@ rodadas_revisao: 1/2
 - Removidas as comparações F4 de volume/distribuição com o contrato anterior; teste RED/GREEN, revisão independente 1/2 sem bloqueadores. Permanecem as demais salvaguardas, inclusive veto de qualidade e exigência de atribuição F4/freios independentes.
 - Proposta tipada 35/44/66, 145 total, 131 Z2 e 14 forte em KpiMaster `loops/review/retificacoes/2026-W47-corrida-proposta-caio.json`. Publisher dry-run com prep real e proposta bloqueou por veto de qualidade/F4/deload: handoff não atesta atribuição do veto nem freios independentes. Sem inferir que o histórico de cansaço por si só proíba publicação, nem inventar estado clínico. Plano W47 ainda não publicado; release não executado.
 - KpiMaster 17 testes unittest OK; app 22 testes Node OK. Uma tentativa com nome incorreto de módulo unittest teve erro de importação, corrigido na execução dos módulos existentes. `git diff --check` sem erros.
+- Após autorização posterior ao bloqueio, exceção pontual preserva ausência de atestações sem simulá-las e mantém rejeição de freios independentes explicitamente ativos. Auditoria em KpiMaster `loops/review/retificacoes/2026-W47-corrida-autorizacao-publicacao.md`; run retificada `LR4-2026-W47-retificacao-caio` preserva prep histórico. Revisão independente 2/2 passou sem bloqueadores; ausência de atestação é limitação conhecida, não liberação clínica.
+- Publisher real gravou e leu de volta `corrida-plan.json` W47, SHA-256 `913aab52039f54871df90bcb4bf4da77ff730565432122b413a418ec74f960d6`; sessões conferem integralmente com proposta, totais 145/131/14. KpiMaster 17 testes e app 22 testes passaram; scan estático sem achados. Nenhum release ou deploy feito; validação no PWA e hash remoto ficam com agente principal.
 
 ---
 # Corrida — retirar bloqueio de dois intervalados
