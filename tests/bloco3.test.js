@@ -105,8 +105,8 @@ for (let wk = 1; wk <= 6; wk++) {
   const twoResult = validateRunningPlanPayload(twoIntervals);
   ok(twoResult.ok, 'dois intervalados tipados são aceitos: ' + JSON.stringify(twoResult.errors));
   const badCap = structuredClone(twoIntervals);
-  badCap.sessoes[0].segmentos[1].forte.fc_cap = 163;
-  ok(!validateRunningPlanPayload(badCap).ok, 'FC incorreta continua recusada');
+  badCap.sessoes[0].segmentos[1].forte.fc_cap = 0;
+  ok(!validateRunningPlanPayload(badCap).ok, 'FC inválida continua recusada');
   const badTotal = structuredClone(twoIntervals);
   badTotal.totais.agachamento_z2_min = 0;
   ok(!validateRunningPlanPayload(badTotal).ok, 'Z2 parcial incorreto continua recusado');

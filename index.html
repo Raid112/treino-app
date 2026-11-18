@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v35 · 17/11</div>
+      <div class="app-version">v36 · 18/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1460,7 +1460,7 @@ function formatRunSegmentsLabel(segments) {
   return segments.map(segment => {
     if (segment?.tipo === 'continuo') return `${segment.min} min ${segment.zona}`;
     if (segment?.tipo === 'intervalos') {
-      return `${segment.repeticoes}×(${segment.forte?.min} min forte controlado / ${segment.recuperacao?.min} min leve Z2)`;
+      return `${segment.repeticoes}×(${segment.forte?.min} min ${segment.forte?.zona} / ${segment.recuperacao?.min} min ${segment.recuperacao?.zona})`;
     }
     return '';
   }).filter(Boolean).join(' + ');
@@ -1478,38 +1478,28 @@ const PACE_GUIDE = {
 
 function renderRunSegmentsDetail(target) {
   if (!target || !Array.isArray(target.segments) || !target.segments.length) return '';
-  const g = PACE_GUIDE || {};
-  const pace = k => g[k]?.esteira ? ` · esteira <strong>${g[k].esteira}</strong> · rua <strong>${g[k].rua}</strong>` : '';
   const rows = target.segments.map(seg => {
-    if (seg?.tipo === 'continuo') {
-      return `<li><strong>${seg.min} min Z2</strong> leve · FC ≤ ${seg.fc_cap}${pace('Z2')}</li>`;
-    }
-    if (seg?.tipo === 'intervalos') {
-      const nota = g.recuperacao?.nota ? `<div class="run-segment-note">${g.recuperacao.nota}</div>` : '';
-      return `<li><strong>${seg.repeticoes}× (${seg.forte?.min} min forte + ${seg.recuperacao?.min} min leve)</strong>
-        <div>Forte: FC até ${seg.forte?.fc_cap}${pace('forte')}</div>
-        <div>Leve: FC ≤ ${seg.recuperacao?.fc_cap}${pace('recuperacao')}</div>${nota}</li>`;
-    }
+    if (seg.tipo === 'continuo') return `<li><strong>${seg.min} min ${seg.zona}</strong> · FC ≤ ${seg.fc_cap}</li>`;
+    if (seg.tipo === 'intervalos') return `<li><strong>${seg.repeticoes}× (${seg.forte.min} min ${seg.forte.zona} + ${seg.recuperacao.min} min ${seg.recuperacao.zona})</strong><div>Forte: FC ≤ ${seg.forte.fc_cap}</div><div>Recuperação: FC ≤ ${seg.recuperacao.fc_cap}</div></li>`;
     return '';
   }).join('');
-  const forte = g.forte?.nota ? `<div class="run-segment-note">${g.forte.nota}</div>` : '';
-  return `<ol class="run-segments">${rows}</ol>${forte}`;
+  return `<ol class="run-segments">${rows}</ol>`;
 }
 
 function runTargetFor(dayDef, wd = null, week = null, now = new Date()) {
   const c = BLOCO_DES694.corrida;
-  if (wd && wd.specialRun === '5k_test' && dayDef.run === 'longa') {
+  if (wd && wd.specialRun === '5k_test' && dayDef.run === 'longa' && !getApplicableRunningPlan(week, now)) {
     return { min: null, minEhPiso: false, zone: '5K Teste', fcCap: null,
              tipo: dayDef.run };
   }
   const approved = getApplicableRunningPlan(week, now);
   const planned = approved && approved.sessoes.find(session => session.dia_app === `D${dayDef.day}`);
   if (planned && dayDef.run) {
-    return { min: Math.round(planned.min), minEhPiso: false, zone: planned.zona,
+    return { min: planned.min, minEhPiso: false, zone: planned.zona,
              fcCap: planned.fc_cap, tipo: dayDef.run,
              segments: Array.isArray(planned.segmentos)
                ? planned.segmentos.map(segment => ({ ...segment,
-                   ...(Number.isFinite(segment.min) ? { min: Math.round(segment.min) } : {}),
+                   ...(Number.isFinite(segment.min) ? { min: segment.min } : {}),
                    forte: segment.forte ? { ...segment.forte } : segment.forte,
                    recuperacao: segment.recuperacao ? { ...segment.recuperacao } : segment.recuperacao })) : [],
              source: 'review-aprovada' };
@@ -1532,7 +1522,7 @@ function dayDisplayName(dayDef, week, now = new Date()) {
   if (!dayDef.run || !/Corrida Z3/.test(dayDef.name)) return dayDef.name;
   const wd = WEEK_DATA[week];
   const target = wd ? runTargetFor(dayDef, wd, week, now) : null;
-  return target && target.zone === 'intervalado' ? dayDef.name.replace('Corrida Z3', 'Corrida intervalada') : dayDef.name;
+  return target && target.source === 'review-aprovada' ? dayDef.name.replace('Corrida Z3', `Corrida ${target.zone === 'intervalado' ? 'intervalada' : target.zone}`) : dayDef.name;
 }
 
 function runTargetLabel(target) {
@@ -1660,22 +1650,6 @@ function validateRunningPlanPayload(plan) {
       || typeof plan.source.prep_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(plan.source.prep_sha256)) {
     errors.push('proveniência da review inválida');
   }
-  if (!['base', 'deload'].includes(plan.fase)) errors.push('fase inválida');
-  const appWeek = WEEK_DATA[Number(plan.semana_bloco)];
-  if (!appWeek) {
-    errors.push('semana fora do cronograma de treino-app');
-  } else {
-    // WEEK_DATA.deload belongs to strength; running phase comes from the approved
-    // running-plan contract and is checked below by its own phase-specific rules.
-    if (appWeek.specialRun === '5k_test') errors.push('semana de teste 5K não aceita plano de Long Run');
-  }
-  if (!plan.excecao_deload || typeof plan.excecao_deload !== 'object'
-      || typeof plan.excecao_deload.aplica !== 'boolean') errors.push('excecao_deload ausente/inválida');
-  if (!isFinitePositive(plan.long_minimo_min)) errors.push('long_minimo_min inválido');
-  if (plan.long_minimo_excecao != null && typeof plan.long_minimo_excecao !== 'string') {
-    errors.push('long_minimo_excecao inválida');
-  }
-
   const sessions = Array.isArray(plan.sessoes) ? plan.sessoes : [];
   const expected = { D1: 'agachamento', D2: 'terra', D4: 'long_run' };
   const zoneMinutes = new Map();
@@ -1689,9 +1663,8 @@ function validateRunningPlanPayload(plan) {
     if (session.papel !== expected[session.dia_app]) errors.push(`${session.dia_app}: papel não confere`);
     if (!isFinitePositive(session.min)) errors.push(`${session.dia_app}: duração exata inválida`);
     if (!['Z2', 'Z3', 'intervalado'].includes(session.zona)) errors.push(`${session.dia_app}: zona explícita ausente`);
-    const expectedCap = session.zona === 'Z2' ? 150 : session.zona === 'Z3' || session.zona === 'intervalado' ? 162 : null;
+    if (!isFinitePositive(session.fc_cap)) errors.push(`${session.dia_app}: FC cap inválido`);
     if (session.zona !== 'intervalado') {
-      if (session.fc_cap !== expectedCap) errors.push(`${session.dia_app}: FC cap não confere com a zona aprovada`);
       if (session.segmentos != null && (!Array.isArray(session.segmentos) || session.segmentos.length)) {
         errors.push(`${session.dia_app}: segmentos só são aceitos em sessão intervalada`);
       }
@@ -1711,28 +1684,28 @@ function validateRunningPlanPayload(plan) {
           continue;
         }
         if (segment.tipo === 'continuo') {
-          if (!isFinitePositive(segment.min) || segment.zona !== 'Z2' || segment.fc_cap !== 150) {
-            errors.push(`${session.dia_app}: segmento contínuo deve ser Z2/FC≤150`);
+          if (!isFinitePositive(segment.min) || !['Z2', 'Z3', 'intervalo'].includes(segment.zona) || !isFinitePositive(segment.fc_cap)) {
+            errors.push(`${session.dia_app}: segmento contínuo inválido`);
             validSegments = false;
             continue;
           }
-          zones.Z2 += segment.min;
+          zones[segment.zona] += segment.min;
           segmentTotal += segment.min;
           maxSegmentCap = Math.max(maxSegmentCap, segment.fc_cap);
         } else if (segment.tipo === 'intervalos') {
           const work = segment.forte, recovery = segment.recuperacao;
           if (!Number.isInteger(segment.repeticoes) || segment.repeticoes < 1
-              || !work || !recovery || !isFinitePositive(work.min) || work.zona !== 'intervalo'
-              || work.fc_cap !== 162 || !isFinitePositive(recovery.min) || recovery.zona !== 'Z2'
-              || recovery.fc_cap !== 150) {
-            errors.push(`${session.dia_app}: intervalos exigem forte controlado/FC≤162 e recuperação Z2/FC≤150`);
+              || !work || !recovery || !isFinitePositive(work.min) || !['Z2', 'Z3', 'intervalo'].includes(work.zona)
+              || !isFinitePositive(work.fc_cap) || !isFinitePositive(recovery.min) || !['Z2', 'Z3', 'intervalo'].includes(recovery.zona)
+              || !isFinitePositive(recovery.fc_cap)) {
+            errors.push(`${session.dia_app}: intervalos inválidos`);
             validSegments = false;
             continue;
           }
           const workTotal = work.min * segment.repeticoes;
           const recoveryTotal = recovery.min * segment.repeticoes;
-          zones.intervalo += workTotal;
-          zones.Z2 += recoveryTotal;
+          zones[work.zona] += workTotal;
+          zones[recovery.zona] += recoveryTotal;
           segmentTotal += workTotal + recoveryTotal;
           maxSegmentCap = Math.max(maxSegmentCap, work.fc_cap, recovery.fc_cap);
         } else {
@@ -1743,9 +1716,6 @@ function validateRunningPlanPayload(plan) {
       if (!validSegments || !closeEnough(segmentTotal, session.min)) {
         errors.push(`${session.dia_app}: segmentos não fecham com a duração total`);
       }
-      if (session.fc_cap !== maxSegmentCap || session.fc_cap !== expectedCap) {
-        errors.push(`${session.dia_app}: FC cap da sessão não corresponde aos segmentos`);
-      }
       zoneMinutes.set(session.dia_app, zones);
     }
   }
@@ -1754,10 +1724,8 @@ function validateRunningPlanPayload(plan) {
   }
 
   const d1 = byDay.get('D1'), d2 = byDay.get('D2'), d4 = byDay.get('D4');
-  const hasLongMinimumException = typeof plan.long_minimo_excecao === 'string'
-    && plan.long_minimo_excecao.trim().length > 0;
   const totals = plan.totais || {};
-  const total = sessions.reduce((sum, s) => sum + (isFinitePositive(s.min) ? s.min : 0), 0);
+  const total = sessions.reduce((sum, s) => sum + (s && isFinitePositive(s.min) ? s.min : 0), 0);
   const z2 = [...zoneMinutes.values()].reduce((sum, value) => sum + value.Z2, 0);
   const z3 = [...zoneMinutes.values()].reduce((sum, value) => sum + value.Z3, 0);
   const intervals = [...zoneMinutes.values()].reduce((sum, value) => sum + value.intervalo, 0);
@@ -1770,43 +1738,10 @@ function validateRunningPlanPayload(plan) {
   }
   // agachamento_z2_min conta só o Z2 do D1: com D1 em Z3 (B3, 09/11/2026) ele é 0.
   if (d1 && !closeEnough(totals.agachamento_z2_min, zoneMinutes.get('D1')?.Z2 ?? 0)
-      || d4 && !closeEnough(totals.long_run_z2_min, d4.min)) {
+      || d4 && !closeEnough(totals.long_run_z2_min, zoneMinutes.get('D4')?.Z2 ?? 0)) {
     errors.push('totais diários não fecham com D1/D4');
   }
 
-  if (plan.fase === 'base') {
-    // D1 em Z2 segue travado em 30 min; qualidade pode ser contínua ou intervalada.
-    const d1Z2 = d1 && d1.zona === 'Z2' && d1.fc_cap === 150 && closeEnough(d1.min, 30);
-    const d1Qualidade = d1 && ['Z3', 'intervalado'].includes(d1.zona) && d1.fc_cap === 162;
-    if (d1 && !d1Z2 && !d1Qualidade) {
-      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150, Z3 ou intervalado/FC≤162');
-    }
-    if (d2 && (!['Z3', 'intervalado'].includes(d2.zona) || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3 ou intervalado/FC≤162');
-    if (d4 && d4.zona !== 'Z2') errors.push('semana regular: D4 Long Run deve ser Z2');
-    if (d1 && d4 && !closeEnough(d4.min,
-        totals.total_z2_min - totals.agachamento_z2_min - totals.terra_z2_min)) {
-      errors.push('semana regular: D4 deve ser total Z2 menos D1 e Z2 do D2 Terra');
-    }
-    const range = plan.faixa_volume_aprovada_min;
-    if (!Array.isArray(range) || range.length !== 2 || !isFinitePositive(range[0])
-        || !isFinitePositive(range[1]) || range[0] > range[1]
-        || total < range[0] - 0.05 || total > range[1] + 0.05) {
-      errors.push('volume total fora da faixa aprovada pela review');
-    }
-    if (plan.regra_long_run !== 'total_z2_min - agachamento_z2_min - terra_z2_min') errors.push('regra regular do Long Run ausente');
-    const floor = Number.isFinite(plan.long_minimo_min) ? plan.long_minimo_min : 30;
-    if (d4 && d4.min < floor && !hasLongMinimumException) errors.push('Long Run abaixo do piso sem exceção explícita');
-    if ((plan.excecao_deload || {}).aplica === true) errors.push('exceção de deload em semana regular');
-  } else if (plan.fase === 'deload') {
-    if (!d1 || d1.zona !== 'Z2' || !d2 || !d4 || d4.zona !== 'Z2') {
-      errors.push('deload exige alocação explícita de agachamento/Long Run Z2 e D2');
-    }
-    if (plan.regra_long_run !== 'seguir_distribuicao_exata_da_review'
-        || (plan.excecao_deload || {}).aplica !== true) errors.push('deload sem regra/distribuição explícita');
-    const floor = Number.isFinite(plan.long_minimo_min) ? plan.long_minimo_min : 30;
-    if (d4 && d4.min < floor && !hasLongMinimumException) errors.push('Long Run de deload abaixo do piso sem exceção explícita');
-    if (plan.faixa_volume_aprovada_min !== null) errors.push('deload não deve herdar a faixa regular');
-  }
   return { ok: errors.length === 0, errors };
 }
 
@@ -1929,7 +1864,9 @@ function refreshInProgressRunTarget(workout) {
   const target = runTargetFor(dayDef, wd, workout.week);
   const previous = workout.running.target || {};
   const changed = ['min', 'minEhPiso', 'zone', 'fcCap', 'tipo']
-    .some(key => previous[key] !== target[key]);
+    .some(key => previous[key] !== target[key])
+    || JSON.stringify(previous.segments || []) !== JSON.stringify(target.segments || [])
+    || previous.source !== target.source;
   if (changed) workout.running.target = target;
   return changed;
 }
@@ -2528,7 +2465,7 @@ const Workout = {
     // mantém os guardrails do esqueleto sem inventar duração para o Long Run.
     if (dayDef.type === 'running' || dayDef.type === 'combined') {
       const t = runTargetFor(dayDef, wd, week, now);
-      const teste = wd.specialRun === '5k_test' && dayDef.run === 'longa';
+      const teste = t.zone === '5K Teste';
       base.running = {
         target: t,
         note: teste ? 'Teste de saida: 5K de rua. So com recovery.flag verde e sem dor.'
@@ -3476,8 +3413,8 @@ const App = {
     const r = w.running;
     const dayDef = DAY_DEFS[w.dayNum - 1];
     const runCtx = dayDef.runCtx || 'solo';
-    const zi = ZONE_INFO[r.target.zone];
-    const cad = CADENCE_TARGETS[runCtx];
+    const zi = r.target.source === 'review-aprovada' ? { fc: `FC ≤ ${r.target.fcCap} bpm` } : ZONE_INFO[r.target.zone];
+    const cad = r.target.source === 'review-aprovada' ? null : CADENCE_TARGETS[runCtx];
     const div = document.createElement('div');
     div.className = 'running-card';
     div.id = 'running-card';

@@ -480,11 +480,11 @@ if (planContractHelpersAvailable) {
   ok(staleW3d4.running.target.min === null && wrongWeekW3d4.running.target.min === null,
      'contrato antigo ou de outra semana do bloco não alimenta D4');
   const wrongPhasePlan = { ...syntheticRunPlan, fase: 'deload' };
-  ok(!validateRunningPlanPayload(wrongPhasePlan).ok,
-     'fase deload exige distribuição própria, não só o enum');
+  ok(validateRunningPlanPayload(wrongPhasePlan).ok,
+     'fase deload não impõe distribuição esportiva');
   const invalidPhase = { ...syntheticRunPlan, fase: 'teste' };
-  ok(!validateRunningPlanPayload(invalidPhase).ok,
-     'fase desconhecida continua rejeitada');
+  ok(validateRunningPlanPayload(invalidPhase).ok,
+     'fase não impõe veto esportivo');
   const malformedHash = structuredClone(syntheticRunPlan);
   malformedHash.source.prep_sha256 = 'not-a-sha256';
   ok(!validateRunningPlanPayload(malformedHash).ok,
@@ -538,17 +538,16 @@ if (planContractHelpersAvailable) {
   ok(setApprovedRunningPlan(w43IntervalPlan), 'payload W43 sintético fica disponível ao consumer');
   const w43D2 = Workout.generateWorkout({ ...cfg, currentWeek: 4 }, 2, w43Date);
   const w43D2Label = runLabel(DAY_DEFS[1], WEEK_DATA[4], 4, w43Date);
-  ok(w43D2.running.target.min === 66 && w43D2.running.target.zone === 'intervalado'
+  ok(w43D2.running.target.min === 65.8 && w43D2.running.target.zone === 'intervalado'
      && w43D2.running.target.segments.length === 3
-     && w43D2Label === '66min intervalado · FC ≤ 162',
+     && w43D2Label === '65.8min intervalado · FC ≤ 162',
      'card da home resume D2 (66 min, sem a estrutura; Caio 20/10)');
   const w43D2Detail = renderRunSegmentsDetail(w43D2.running.target);
-  ok(w43D2Detail.includes('15 min Z2') && w43D2Detail.includes('4× (3 min forte + 2 min leve)')
-     && w43D2Detail.includes('31 min Z2') && !/\d+\.\d+ ?min/.test(w43D2Detail),
-     'dentro do treino o D2 mostra cada trecho em minuto inteiro');
-  ok(w43D2Detail.includes('esteira <strong>~8:05/km</strong>') && w43D2Detail.includes('rua <strong>~8:10/km</strong>')
-     && /Caminhe só se a FC passar de 150/.test(w43D2Detail) && /sem sprint/.test(w43D2Detail),
-     'D2 traz pace de Z2 (esteira/rua), regra da recuperação e o que é o forte');
+  ok(w43D2Detail.includes('15 min Z2') && w43D2Detail.includes('4× (3 min intervalo + 2 min Z2)')
+     && w43D2Detail.includes('30.8 min Z2'),
+     'dentro do treino o D2 preserva a duração de cada trecho');
+  ok(w43D2Detail.includes('FC ≤ 150') && w43D2Detail.includes('FC ≤ 162') && !w43D2Detail.includes('sem sprint'),
+     'D2 mostra FC prescrita sem orientação esportiva inventada');
   ok(dayDisplayName(DAY_DEFS[1], 4, w43Date) === 'Deadlift + Corrida intervalada',
      'D2 intervalado não se chama mais "Corrida Z3"');
   ok(setApprovedRunningPlan(syntheticRunPlan), 'teste W43 restaura o payload sintético anterior');
@@ -581,10 +580,10 @@ if (planContractHelpersAvailable) {
     totais: { total_semanal_min: 70, total_z2_min: 70, total_z3_min: 0,
       total_intervalo_min: 0, agachamento_z2_min: 20, terra_z2_min: 25, long_run_z2_min: 25 }
   };
-  ok(!validateRunningPlanPayload(blankDeloadException).ok,
-     'exceção de deload em branco não libera Long Run abaixo do piso');
-  ok(!validateRunningPlanPayload({ ...syntheticDeload, semana_iso: '2026-W45', semana_bloco: 6 }).ok,
-     'W6 com teste 5K rejeita payload de Long Run incompatível');
+  ok(validateRunningPlanPayload(blankDeloadException).ok,
+     'piso não veta distribuição aprovada');
+  ok(validateRunningPlanPayload({ ...syntheticDeload, semana_iso: '2026-W45', semana_bloco: 6 }).ok,
+     'W6 aceita plano aprovado mesmo com teste no cronograma');
   const deloadDate = new Date(2026, 9, 19, 12);
   ok(setApprovedRunningPlan(syntheticDeload)
      && Workout.generateWorkout({ ...cfg, currentWeek: 4 }, 4, deloadDate).running.target.min === 30,

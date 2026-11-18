@@ -26,7 +26,7 @@ const sandbox = {
   }
 };
 new Function('globalThis', dataLayer + ';globalThis.__x = {' +
-  'loadApprovedRunningPlan, setApprovedRunningPlan, validateRunningPlanPayload, getApplicableRunningPlan, ' +
+  'loadApprovedRunningPlan, setApprovedRunningPlan, validateRunningPlanPayload, getApplicableRunningPlan, runTargetFor, renderRunSegmentsDetail, ' +
   'isStrengthDeloadWeek: week => !!WEEK_DATA[Number(week)]?.deload, ' +
   'getApprovedRunningPlan: () => APPROVED_RUNNING_PLAN' +
 '};')(sandbox);
@@ -75,6 +75,40 @@ const week43BasePlan = {
 const { loadApprovedRunningPlan, setApprovedRunningPlan, validateRunningPlanPayload,
   getApplicableRunningPlan, isStrengthDeloadWeek, getApprovedRunningPlan } = sandbox.__x;
 
+test('preserves approved flexible sessions, fractional minutes and segment zones/caps', () => {
+  const plan = structuredClone(week43BasePlan);
+  plan.sessoes[0].min = 31.5;
+  plan.sessoes[0].fc_cap = 145;
+  plan.sessoes[1].fc_cap = 170;
+  plan.sessoes[1].segmentos[0].zona = 'Z3';
+  plan.sessoes[1].segmentos[0].fc_cap = 165;
+  plan.sessoes[1].segmentos[1].forte.fc_cap = 170;
+  plan.sessoes[1].segmentos[1].recuperacao.fc_cap = 145;
+  plan.sessoes[2].min = 20;
+  plan.totais = { total_semanal_min: 117.3, total_z2_min: 90.3, total_z3_min: 15,
+    total_intervalo_min: 12, agachamento_z2_min: 31.5, terra_z2_min: 38.8, long_run_z2_min: 20 };
+  assert.deepEqual(validateRunningPlanPayload(plan), { ok: true, errors: [] });
+  assert.equal(setApprovedRunningPlan(plan), true);
+  const day1 = sandbox.__x.runTargetFor({ day: 1, run: 'base' }, {}, 4, new Date(2026, 9, 21, 12));
+  assert.equal(day1.min, 31.5);
+  const day2 = sandbox.__x.runTargetFor({ day: 2, run: 'quality' }, {}, 4, new Date(2026, 9, 21, 12));
+  const rendered = sandbox.__x.renderRunSegmentsDetail(day2);
+  assert.match(rendered, /15 min Z3/);
+  assert.match(rendered, /FC ≤ 165/);
+  assert.doesNotMatch(rendered, /não passe de 162/);
+});
+
+test('approved long run overrides a legacy 5K test week', () => {
+  const plan = structuredClone(validPlan);
+  plan.semana_bloco = 6;
+  plan.semana_iso = '2026-W45';
+  assert.equal(setApprovedRunningPlan(plan), true);
+  const target = sandbox.__x.runTargetFor({ day: 4, run: 'longa' },
+    { specialRun: '5k_test' }, 6, new Date(2026, 10, 4, 12));
+  assert.equal(target.min, 80);
+  assert.equal(target.source, 'review-aprovada');
+});
+
 test('loads only a valid approved plan and stores it for the active consumer', async () => {
   const ok = await loadApprovedRunningPlan(async url => {
     assert.equal(url, './corrida-plan.json');
@@ -93,22 +127,27 @@ test('W43 accepts a running base phase while the strength week is deload', () =>
   assert.equal(getApplicableRunningPlan(4, new Date(2026, 9, 21, 12))?.sessoes[1].segmentos.length, 3);
 });
 
-test('W43/base still enforces approval, approved volume range and zone heart-rate caps', () => {
+test('enforces approval and structural consistency without enforcing sports policy', () => {
   const missingApproval = structuredClone(week43BasePlan);
   missingApproval.approval.state = 'pending';
   assert.equal(setApprovedRunningPlan(missingApproval), false);
 
   const outsideRange = structuredClone(week43BasePlan);
   outsideRange.faixa_volume_aprovada_min = [160, 161];
-  assert.equal(setApprovedRunningPlan(outsideRange), false);
+  assert.equal(setApprovedRunningPlan(outsideRange), true);
 
   const wrongHeartRateCap = structuredClone(week43BasePlan);
-  wrongHeartRateCap.sessoes[1].fc_cap = 150;
+  wrongHeartRateCap.sessoes[1].fc_cap = 0;
   assert.equal(setApprovedRunningPlan(wrongHeartRateCap), false);
 
   const wrongRecoveryZone = structuredClone(week43BasePlan);
-  wrongRecoveryZone.sessoes[1].segmentos[1].recuperacao.zona = 'intervalo';
+  wrongRecoveryZone.sessoes[1].segmentos[1].recuperacao.zona = '<invalid>';
   assert.equal(setApprovedRunningPlan(wrongRecoveryZone), false);
+
+  const wrongDuration = structuredClone(week43BasePlan);
+  wrongDuration.sessoes[1].segmentos[0].min += 1;
+  assert.equal(setApprovedRunningPlan(wrongDuration), false);
+  assert.doesNotThrow(() => validateRunningPlanPayload({ ...validPlan, sessoes: [null] }));
 });
 
 test('unavailable or invalid fetch clears any previously cached in-memory approval', async () => {
