@@ -1,3 +1,22 @@
+# Corrida — destravar release do plano aprovado
+
+diretorio: /home/caio/treino-app
+rodadas_revisao: 1/2
+
+## criterios
+- [x] Resolver o bloqueio do release relativo à versão/cache para publicar o plano aprovado, preservando atualização confiável do PWA.
+- [x] Não deixar bloqueios injustificados impedirem a publicação; preservar o plano aprovado e dados de outros domínios.
+- [ ] Testar e commitar; o agente principal executa o release e verifica o plano publicado.
+
+## Evidências parciais
+- Cache e versão visível atualizados de v34 para v35; teste RED/GREEN de descarte de cache antigo e teste de sincronização das versões. Política de atualização e fallback preservada.
+- `node --test tests/*.test.js tests/*.test.mjs`: 23/23; `git diff --check` limpo. Revisão independente 1/2 sem bloqueadores ou backlog.
+- Plano preservado: SHA-256 `913aab52039f54871df90bcb4bf4da77ff730565432122b413a418ec74f960d6`. Fetch bem-sucedido, master local à frente sem divergência; autenticação gh válida. Release e verificação remota pendentes com o agente principal.
+
+## backlog
+- Nenhum.
+
+---
 # Corrida — remover verificador de divergência do plano
 
 diretorio: /home/caio/treino-app (com ajuste autorizado no KpiMaster)
