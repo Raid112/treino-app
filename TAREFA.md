@@ -1,7 +1,7 @@
 # Corrida — destravar release do plano aprovado
 
 diretorio: /home/caio/treino-app
-rodadas_revisao: 1/2
+rodadas_revisao: 2/2
 
 ## criterios
 - [x] Resolver o bloqueio do release relativo à versão/cache para publicar o plano aprovado, preservando atualização confiável do PWA.
@@ -12,6 +12,8 @@ rodadas_revisao: 1/2
 - Cache e versão visível atualizados de v34 para v35; teste RED/GREEN de descarte de cache antigo e teste de sincronização das versões. Política de atualização e fallback preservada.
 - `node --test tests/*.test.js tests/*.test.mjs`: 23/23; `git diff --check` limpo. Revisão independente 1/2 sem bloqueadores ou backlog.
 - Plano preservado: SHA-256 `913aab52039f54871df90bcb4bf4da77ff730565432122b413a418ec74f960d6`. Fetch bem-sucedido, master local à frente sem divergência; autenticação gh válida. Release e verificação remota pendentes com o agente principal.
+- Release do principal bloqueado no Actions run `44216109378`: smoke rejeitou `0.5 min` do S2-D1. Checker agora aceita apenas a exceção de 0,5 min (30 segundos), mantendo a rejeição das demais frações e demais verificações. Prescrição não alterada; teste RED reproduziu a falha anterior.
+- `node --test tests/*.test.js tests/*.test.mjs`: 24/24 passaram; `TZ=America/Sao_Paulo node tests/smoke.browser.mjs`: SMOKE OK com Chromium real. Revisão independente 2/2 sem bloqueadores; scan estático sem achados. Release e verificação remota continuam exclusivos do principal.
 
 ## backlog
 - Nenhum.

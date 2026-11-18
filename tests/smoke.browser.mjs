@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fractionalMinutePattern } from './smoke-checks.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shots = process.env.SMOKE_SHOTS || '';
@@ -52,7 +53,7 @@ async function checaTela(nome, rotulo = nome) {
   const proibidos = [
     [/\bundefined\b|\bNaN\b|\[object Object\]/, 'texto quebrado'],
     [/Sem meta individual|por refeição não definidos/i, 'refeição sem a meta aprovada'],
-    [/\b\d+[.,]\d+ ?min\b/i, 'minuto fracionado'],
+    [fractionalMinutePattern, 'minuto fracionado'],
     [/\bloops\/|\.md\b|\.json\b/, 'caminho de arquivo na tela'],
     [/(^|[\s·(])W\d{1,2}\b/, 'semana ISO (Wnn) em vez de S1-S6'],
   ];
