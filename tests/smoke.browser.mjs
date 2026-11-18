@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fractionalMinutePattern } from './smoke-checks.mjs';
+import { prohibitedScreenText } from './smoke-checks.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const shots = process.env.SMOKE_SHOTS || '';
@@ -48,16 +48,9 @@ async function checaTela(nome, rotulo = nome) {
   if (!vis) falhas.push(`${rotulo}: tela não ficou visível`);
   const texto = (await page.locator(`#${nome}.screen`).innerText().catch(() => '')).trim();
   if (vis && texto.length < 10) falhas.push(`${rotulo}: tela renderizou vazia`);
-  // Texto que o Caio não deveria ver: quebra de JS, plano sem número, minuto fracionado,
+  // Texto que o Caio não deveria ver: quebra de JS, plano sem número,
   // caminho de arquivo, semana ISO (ele conta S1-S6 do bloco).
-  const proibidos = [
-    [/\bundefined\b|\bNaN\b|\[object Object\]/, 'texto quebrado'],
-    [/Sem meta individual|por refeição não definidos/i, 'refeição sem a meta aprovada'],
-    [fractionalMinutePattern, 'minuto fracionado'],
-    [/\bloops\/|\.md\b|\.json\b/, 'caminho de arquivo na tela'],
-    [/(^|[\s·(])W\d{1,2}\b/, 'semana ISO (Wnn) em vez de S1-S6'],
-  ];
-  for (const [re, motivo] of proibidos) {
+  for (const [re, motivo] of prohibitedScreenText) {
     const m = texto.match(new RegExp(`.{0,30}(?:${re.source}).{0,30}`, re.flags));
     if (m) falhas.push(`${rotulo}: ${motivo} ("${m[0].replace(/\s+/g, ' ').trim()}")`);
   }
