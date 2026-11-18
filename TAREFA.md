@@ -1,7 +1,7 @@
 # Corrida — retirar bloqueio de dois intervalados
 
 diretorio: /home/caio/treino-app (app; ajuste autorizado também no validador do KpiMaster)
-rodadas_revisao: 1/2
+rodadas_revisao: 2/2
 
 ## criterios
 - [x] Retirar o bloqueio que impede dois treinos intervalados na mesma semana no treino-app.
@@ -13,7 +13,9 @@ rodadas_revisao: 1/2
 - App aceita D1 intervalado tipado, mantendo validação de segmentos, FC e totais; cache v34. Teste RED comprovou bloqueio anterior; `node --test tests/*.test.js tests/*.test.mjs`: 22/22.
 - KpiMaster: Z2 parcial de D1 passa a somar segmentos, teste RED/GREEN; 12 testes unittest passaram. Teste `test_f4_handoff_fail_closed` não executou por ausência de pytest.
 - Revisão independente 1/2: sem bloqueadores ou backlog no escopo parcial. Scan estático sem achados e `git diff --check` limpo.
-- Exceção F4 ainda não implementada; plano aprovado W47 não foi publicado. Review histórica continua pendente; não adulterar o handoff nem remover freios. Mapeamento A/B para D1/D2 não foi aprovado como calendário. Sem release ou deploy.
+- Caio confirmou A no agachamento (D1), B no terra (D2) e longão D4; sem datas de calendário. Handoff fiel em `KpiMaster/loops/review/retificacoes/2026-W47-corrida-handoff-excecao-f4.md`.
+- Revisão 2/2 identificou que veto agregado pode incluir outros freios. Código agora exige atribuição explícita a F4 e avaliação independente, além de dose exata e aprovação pontual; correção testada, sem terceira revisão. Handoff histórico não contém essas atestações, que não foram inventadas; publicação bloqueada. A revisão não comprovou liberação de freios reais.
+- KpiMaster: 23 testes unittest OK; app: 22 testes Node OK; `git diff --check` limpo. Publisher real em `--dry-run` bloqueou proposta histórica pendente. Pytest indisponível; teste Android não executado. App v34 publicado pelo principal; plano W47 não publicado nem release executado nesta etapa.
 
 ## backlog
 - Nenhum.
