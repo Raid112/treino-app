@@ -862,7 +862,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   <div id="home" class="screen active">
     <div class="home-header">
       <h1>TREINO UNIFICADO</h1>
-      <div class="app-version">v33 · 10/11</div>
+      <div class="app-version">v34 · 17/11</div>
       <div class="week-nav">
         <button class="week-btn" id="btn-prev-week">&lt;</button>
         <span class="week-display">Semana <span id="current-week">1</span>/6</span>
@@ -1775,12 +1775,11 @@ function validateRunningPlanPayload(plan) {
   }
 
   if (plan.fase === 'base') {
-    // D1 em Z2 segue travado em 30 min; desde o B3 o D1 também pode ser Z3 contínuo
-    // (FC≤162) com a duração aprovada pelo Caio.
+    // D1 em Z2 segue travado em 30 min; qualidade pode ser contínua ou intervalada.
     const d1Z2 = d1 && d1.zona === 'Z2' && d1.fc_cap === 150 && closeEnough(d1.min, 30);
-    const d1Z3 = d1 && d1.zona === 'Z3' && d1.fc_cap === 162;
-    if (d1 && !d1Z2 && !d1Z3) {
-      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150 ou Z3 contínuo/FC≤162');
+    const d1Qualidade = d1 && ['Z3', 'intervalado'].includes(d1.zona) && d1.fc_cap === 162;
+    if (d1 && !d1Z2 && !d1Qualidade) {
+      errors.push('semana regular: D1 deve ser 30 min Z2/FC≤150, Z3 ou intervalado/FC≤162');
     }
     if (d2 && (!['Z3', 'intervalado'].includes(d2.zona) || d2.fc_cap !== 162)) errors.push('semana regular: D2/Terra deve ser Z3 ou intervalado/FC≤162');
     if (d4 && d4.zona !== 'Z2') errors.push('semana regular: D4 Long Run deve ser Z2');

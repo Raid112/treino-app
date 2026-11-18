@@ -86,6 +86,30 @@ for (let wk = 1; wk <= 6; wk++) {
     ok(![1, 2, 4].some(d => /pendente/i.test(runTargetLabel(t(d)))), 'nenhuma sessão da W46 fica com duração pendente');
     setApprovedRunningPlan(null);
   }
+  // Distribuição aprovada W47, com slots ilustrativos (não são agenda aprovada).
+  const twoIntervals = JSON.parse(JSON.stringify(plan));
+  twoIntervals.semana_iso = '2026-W47';
+  twoIntervals.semana_bloco = 2;
+  twoIntervals.faixa_volume_aprovada_min = [145, 145];
+  const continuous = min => ({ tipo: 'continuo', min, zona: 'Z2', fc_cap: 150 });
+  const intervals = (repeticoes, min) => ({ tipo: 'intervalos', repeticoes,
+    forte: { min, zona: 'intervalo', fc_cap: 162 },
+    recuperacao: { min: 2, zona: 'Z2', fc_cap: 150 } });
+  twoIntervals.sessoes = [
+    { dia_app: 'D1', papel: 'agachamento', zona: 'intervalado', min: 35, fc_cap: 162, segmentos: [continuous(5), intervals(12, .5)] },
+    { dia_app: 'D2', papel: 'terra', zona: 'intervalado', min: 44, fc_cap: 162, segmentos: [continuous(10), intervals(8, 1), continuous(10)] },
+    { dia_app: 'D4', papel: 'long_run', zona: 'Z2', min: 66, fc_cap: 150 }
+  ];
+  twoIntervals.totais = { total_semanal_min: 145, total_z2_min: 131, total_z3_min: 0,
+    total_intervalo_min: 14, agachamento_z2_min: 29, terra_z2_min: 36, long_run_z2_min: 66 };
+  const twoResult = validateRunningPlanPayload(twoIntervals);
+  ok(twoResult.ok, 'dois intervalados tipados são aceitos: ' + JSON.stringify(twoResult.errors));
+  const badCap = structuredClone(twoIntervals);
+  badCap.sessoes[0].segmentos[1].forte.fc_cap = 163;
+  ok(!validateRunningPlanPayload(badCap).ok, 'FC incorreta continua recusada');
+  const badTotal = structuredClone(twoIntervals);
+  badTotal.totais.agachamento_z2_min = 0;
+  ok(!validateRunningPlanPayload(badTotal).ok, 'Z2 parcial incorreto continua recusado');
   const d1z2Longo = JSON.parse(JSON.stringify(plan));
   d1z2Longo.sessoes[0] = { ...d1z2Longo.sessoes[0], zona: 'Z2', fc_cap: 150, min: 45 };
   ok(!validateRunningPlanPayload(d1z2Longo).ok, 'D1 em Z2 fora de 30 min continua recusado');
