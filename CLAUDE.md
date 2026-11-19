@@ -15,6 +15,8 @@ PWA de treino de força que executa o **bloco de 6 semanas** da DES-694 (`B2-202
 
 ## Development
 
+Revisão independente por agente só para mudanças grandes: redesenho substancial, migração de estado/schema ou integração entre componentes com risco significativo. Mudança rotineira, vários arquivos ou regra de negócio nova, por si só, não exigem revisor. Quando aplicável, faça uma única passada técnica focada em bugs, regressões, perda de dados e segurança; não bloqueie nem rediscuta regra de negócio aprovada por discordância. Corrija defeitos no escopo e rode os testes novamente, sem segunda revisão. Testes e release continuam obrigatórios conforme o escopo.
+
 ```bash
 python -m http.server 8000
 # ou: npx http-server
@@ -127,4 +129,4 @@ Este app é a **superfície de execução** do bloco, não o dono do plano.
 
 Força é estática aqui porque o gerador não escreve em `loops/forca/` até a Fase 4 — não há dono concorrente. Corrida é o contrário: qualquer minuto de volume semanal hardcodado aqui fica velho na segunda seguinte.
 
-> **Read-back do contrato ainda não existe.** Precisaria de uma rota `/contrato` no Worker `garmin-cf-probe`, cujo repo não está na VM. Até lá o app mostra o guardrail por sessão e o volume da semana se lê no `plano.md`.
+> O app lê o plano publicado em `corrida-plan.json`; não confundir esse artefato com leitura direta do `plano.md` ou com uma rota `/contrato` no Worker.
