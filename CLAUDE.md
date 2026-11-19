@@ -15,7 +15,7 @@ PWA de treino de força que executa o **bloco de 6 semanas** da DES-694 (`B2-202
 
 ## Development
 
-Revisão independente por agente só para mudanças grandes: redesenho substancial, migração de estado/schema ou integração entre componentes com risco significativo. Mudança rotineira, vários arquivos ou regra de negócio nova, por si só, não exigem revisor. Quando aplicável, faça uma única passada técnica focada em bugs, regressões, perda de dados e segurança; não bloqueie nem rediscuta regra de negócio aprovada por discordância. Corrija defeitos no escopo e rode os testes novamente, sem segunda revisão. Testes e release continuam obrigatórios conforme o escopo.
+Revisão independente por agente só para mudança grande. Grande = mexe no banco, no histórico (ledger, snapshots, review congelada) ou apaga dado. Todo o resto é pequena: testa e publica, sem revisor (Caio, 19/11/2026). Quando aplicável, faça uma única passada técnica focada em bugs, regressões, perda de dados e segurança; não bloqueie nem rediscuta regra de negócio aprovada por discordância. Corrija defeitos no escopo e rode os testes novamente, sem segunda revisão. Testes e release continuam obrigatórios conforme o escopo.
 
 ```bash
 python -m http.server 8000
