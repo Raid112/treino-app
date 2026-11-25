@@ -18,7 +18,7 @@ function loadWorker(fetchImpl, seed = []) {
   const caches = {
     open: async () => cache,
     match: async request => cacheEntries.get(typeof request === 'string' ? request : request.url),
-    keys: async () => ['treino-v34', 'treino-v35', 'treino-v36'],
+    keys: async () => ['treino-v35', 'treino-v36', 'treino-v37'],
     delete: async key => { deletedCaches.push(key); return true; },
   };
   const self = {
@@ -48,12 +48,12 @@ test('precache includes corrida-plan.json for first-install offline behavior', a
   assert.ok(worker.precacheAssets().includes('./corrida-plan.json'));
 });
 
-test('activation deletes stale caches and keeps current treino-v36', async () => {
+test('activation deletes stale caches and keeps current treino-v37', async () => {
   const worker = loadWorker(async () => new Response('{}'));
   let activationPromise;
   worker.listeners.get('activate')({ waitUntil: promise => { activationPromise = promise; } });
   await activationPromise;
-  assert.deepEqual(worker.deletedCaches.sort(), ['treino-v34', 'treino-v35']);
+  assert.deepEqual(worker.deletedCaches.sort(), ['treino-v35', 'treino-v36']);
 });
 
 test('visible app version matches the current service worker cache', async () => {
