@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status": "pronto",
+  "natureza": "alvo_prescrito",
+  "semana_iso": "2026-W47",
+  "bloco_id": "B3-2026-11-09",
+  "semana_bloco": 2,
+  "fase": "base",
+  "approval": {
+    "state": "approved",
+    "reference": "Caio 17/11/2026: plano W47 e exceção pontual F4, nesta conversa",
+    "approved_at": "2026-11-17T22:21:46-03:00"
+  },
+  "source": {
+    "review_run_id": "LR4-2026-W47-retificacao-caio",
+    "prep_sha256": "493d37ebd663c282ddce9b2b2a9d360209d2d4526694dc837abd2b4cffa66ac6"
+  },
+  "faixa_volume_aprovada_min": [
+    145,
+    145
+  ],
+  "sessoes": [
+    {
+      "dia_app": "D1",
+      "papel": "agachamento",
+      "zona": "intervalado",
+      "min": 35,
+      "fc_cap": 162,
+      "segmentos": [
+        {
+          "tipo": "continuo",
+          "min": 5,
+          "zona": "Z2",
+          "fc_cap": 150
+        },
+        {
+          "tipo": "intervalos",
+          "repeticoes": 12,
+          "forte": {
+            "min": 0.5,
+            "zona": "intervalo",
+            "fc_cap": 162
+          },
+          "recuperacao": {
+            "min": 2,
+            "zona": "Z2",
+            "fc_cap": 150
+          }
+        }
+      ]
+    },
+    {
+      "dia_app": "D2",
+      "papel": "terra",
+      "zona": "intervalado",
+      "min": 44,
+      "fc_cap": 162,
+      "segmentos": [
+        {
+          "tipo": "continuo",
+          "min": 10,
+          "zona": "Z2",
+          "fc_cap": 150
+        },
+        {
+          "tipo": "intervalos",
+          "repeticoes": 8,
+          "forte": {
+            "min": 1,
+            "zona": "intervalo",
+            "fc_cap": 162
+          },
+          "recuperacao": {
+            "min": 2,
+            "zona": "Z2",
+            "fc_cap": 150
+          }
+        },
+        {
+          "tipo": "continuo",
+          "min": 10,
+          "zona": "Z2",
+          "fc_cap": 150
+        }
+      ]
+    },
+    {
+      "dia_app": "D4",
+      "papel": "long_run",
+      "zona": "Z2",
+      "min": 66,
+      "fc_cap": 150
+    }
+  ],
+  "totais": {
+    "total_semanal_min": 145,
+    "total_z2_min": 131,
+    "total_z3_min": 0,
+    "total_intervalo_min": 14,
+    "agachamento_z2_min": 29,
+    "terra_z2_min": 36,
+    "long_run_z2_min": 66
+  },
+  "regra_long_run": "total_z2_min - agachamento_z2_min - terra_z2_min",
+  "long_minimo_min": 30,
+  "long_minimo_excecao": null,
+  "excecao_deload": {
+    "aplica": false
+  }
+}

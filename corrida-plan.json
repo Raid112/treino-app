@@ -2,109 +2,58 @@
   "schema_version": 1,
   "status": "pronto",
   "natureza": "alvo_prescrito",
-  "semana_iso": "2026-W47",
+  "semana_iso": "2026-W48",
   "bloco_id": "B3-2026-11-09",
-  "semana_bloco": 2,
+  "semana_bloco": 3,
   "fase": "base",
   "approval": {
     "state": "approved",
-    "reference": "Caio 17/11/2026: plano W47 e exceção pontual F4, nesta conversa",
-    "approved_at": "2026-11-17T22:21:46-03:00"
+    "reference": "Caio Telegram 24-25/11: 20 agacho, 25 terra, 30 longão, Z2",
+    "approved_at": "2026-11-25T00:07:26-03:00"
   },
   "source": {
-    "review_run_id": "LR4-2026-W47-retificacao-caio",
-    "prep_sha256": "493d37ebd663c282ddce9b2b2a9d360209d2d4526694dc837abd2b4cffa66ac6"
+    "review_run_id": "LR4-2026-11-23-1000-aprovado",
+    "prep_sha256": "ce7fc6b1f2c487431b90a56c305553095c4720c958c13b62887736d9cc6c4a7a",
+    "proposal_sha256": "85a7be6bf436aa8757c5a8b8de87aa4cf0d06142d46226c8da429cd55a966494"
   },
-  "faixa_volume_aprovada_min": [
-    145,
-    145
-  ],
+  "faixa_volume_aprovada_min": null,
   "sessoes": [
     {
       "dia_app": "D1",
       "papel": "agachamento",
-      "zona": "intervalado",
-      "min": 35,
-      "fc_cap": 162,
-      "segmentos": [
-        {
-          "tipo": "continuo",
-          "min": 5,
-          "zona": "Z2",
-          "fc_cap": 150
-        },
-        {
-          "tipo": "intervalos",
-          "repeticoes": 12,
-          "forte": {
-            "min": 0.5,
-            "zona": "intervalo",
-            "fc_cap": 162
-          },
-          "recuperacao": {
-            "min": 2,
-            "zona": "Z2",
-            "fc_cap": 150
-          }
-        }
-      ]
+      "min": 20,
+      "zona": "Z2",
+      "fc_cap": 150
     },
     {
       "dia_app": "D2",
       "papel": "terra",
-      "zona": "intervalado",
-      "min": 44,
-      "fc_cap": 162,
-      "segmentos": [
-        {
-          "tipo": "continuo",
-          "min": 10,
-          "zona": "Z2",
-          "fc_cap": 150
-        },
-        {
-          "tipo": "intervalos",
-          "repeticoes": 8,
-          "forte": {
-            "min": 1,
-            "zona": "intervalo",
-            "fc_cap": 162
-          },
-          "recuperacao": {
-            "min": 2,
-            "zona": "Z2",
-            "fc_cap": 150
-          }
-        },
-        {
-          "tipo": "continuo",
-          "min": 10,
-          "zona": "Z2",
-          "fc_cap": 150
-        }
-      ]
+      "min": 25,
+      "zona": "Z2",
+      "fc_cap": 150
     },
     {
       "dia_app": "D4",
       "papel": "long_run",
+      "min": 30,
       "zona": "Z2",
-      "min": 66,
       "fc_cap": 150
     }
   ],
   "totais": {
-    "total_semanal_min": 145,
-    "total_z2_min": 131,
+    "total_semanal_min": 75,
+    "total_z2_min": 75,
     "total_z3_min": 0,
-    "total_intervalo_min": 14,
-    "agachamento_z2_min": 29,
-    "terra_z2_min": 36,
-    "long_run_z2_min": 66
+    "total_intervalo_min": 0,
+    "agachamento_z2_min": 20,
+    "terra_z2_min": 25,
+    "long_run_z2_min": 30
   },
-  "regra_long_run": "total_z2_min - agachamento_z2_min - terra_z2_min",
+  "regra_long_run": "seguir_distribuicao_exata_da_review",
   "long_minimo_min": 30,
   "long_minimo_excecao": null,
   "excecao_deload": {
-    "aplica": false
+    "aplica": true,
+    "regra": "seguir_distribuicao_exata_da_review"
   }
 }
